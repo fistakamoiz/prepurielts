@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Band Up — IELTS Listening & Reading</title>
+<meta name="description" content="Level up your IELTS Listening and Reading with daily practice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="grain"></div>
+<div class="glow g1"></div><div class="glow g2"></div>
+
+<header class="nav" id="nav">
+  <a class="brand" href="#" data-go="landing"><span class="dot"></span>Band<em>Up</em></a>
+  <nav class="nav-links" id="navLinks">
+    <a href="#" data-go="landing">Home</a>
+    <a href="#" data-go="tasks" class="auth-only hidden">Daily Tasks</a>
+    <a href="#" data-go="speaking" class="auth-only hidden">Speaking</a>
+    <a href="#" data-go="board" class="auth-only hidden">Board</a>
+    <a href="#" data-go="admin" class="admin-only hidden">Admin</a>
+  </nav>
+  <div class="nav-right">
+    <span class="who hidden" id="who"></span>
+    <button class="btn ghost" id="btnLogout" hidden>Log out</button>
+    <button class="btn primary" id="btnLogin">Log in</button>
+  </div>
+</header>
+
+<main>
+<!-- ============ LANDING ============ -->
+<section id="view-landing" class="view">
+  <div class="hero">
+    <div class="pill"><span class="pulse"></span> New passage every single day</div>
+    <h1>Master IELTS<br><span class="serif">Listening</span> <span class="amp">&amp;</span> <span class="serif">Reading</span><br>with us.</h1>
+    <p class="lead">Fresh academic passages, exam-style questions and a distraction-free reading room. Train a little every day and watch your band score climb.</p>
+    <div class="cta-row">
+      <button class="btn primary big" data-open-login>Log in to start <span class="arr">→</span></button>
+      <a class="btn ghost big" href="#features">See what's inside</a>
+    </div>
+
+    <div class="hero-visual">
+      <div class="card wave-card">
+        <div class="card-top"><span class="tag">LISTENING</span><span class="mono muted">Section 2 · 00:42</span></div>
+        <div class="wave" id="wave"></div>
+        <div class="card-foot"><span class="muted">Hear it once. Catch every detail.</span></div>
+      </div>
+      <div class="card read-card">
+        <div class="card-top"><span class="tag alt">READING</span><span class="mono muted">Passage 1 · 20 min</span></div>
+        <p class="fake-text">
+          The history of <mark>urban beekeeping</mark> reveals a surprising shift: cities, once considered hostile to pollinators, now host
+          <mark>some of the healthiest colonies</mark> in the developed world, thanks to diverse rooftop gardens and fewer pesticides…
+        </p>
+        <div class="q"><b>Q1.</b> What does the writer suggest about city environments? <span class="mono muted">TRUE / FALSE / NOT GIVEN</span></div>
+      </div>
+      <div class="card score-card">
+        <div class="muted mono">TARGET</div>
+        <div class="score">8<span>.5</span></div>
+        <div class="bar"><i></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marquee"><div class="track" id="marquee"></div></div>
+
+  <section id="features" class="features">
+    <h2>Built for <span class="serif">serious</span> prep.</h2>
+    <div class="grid">
+      <article class="feat"><div class="ico">01</div><h3>Daily Reading Passages</h3><p>A new academic passage is published every day, with matching question sets in real exam formats.</p></article>
+      <article class="feat"><div class="ico">02</div><h3>Focus Reading Room</h3><p>A clean split-screen: passage on the left, questions on the right. Just like the real test.</p></article>
+      <article class="feat"><div class="ico">03</div><h3>Built-in Exam Timer</h3><p>Train under pressure with a 20-minute countdown so test day feels familiar.</p></article>
+      <article class="feat"><div class="ico">04</div><h3>Instant Answer Check</h3><p>Finish, reveal the answer key and learn from every mistake straight away.</p></article>
+      <article class="feat"><div class="ico">05</div><h3>Private Student Access</h3><p>Accounts are created by your teacher, so your space stays focused and distraction-free.</p></article>
+      <article class="feat"><div class="ico">06</div><h3>Listening Practice</h3><p>Train your ear for accents, numbers and tricky distractors, one section at a time.</p></article>
+    </div>
+  </section>
+
+  <section class="steps">
+    <h2>How it <span class="serif">works</span></h2>
+    <ol>
+      <li><b>Get your account</b><span>Your teacher creates your profile.</span></li>
+      <li><b>Log in</b><span>Open today's passage in one click.</span></li>
+      <li><b>Practice</b><span>Read, answer, time yourself.</span></li>
+      <li><b>Improve</b><span>Check answers and repeat tomorrow.</span></li>
+    </ol>
+  </section>
+
+  <section class="final">
+    <h2>Ready for today's <span class="serif">passage</span>?</h2>
+    <button class="btn primary big" data-open-login>Log in <span class="arr">→</span></button>
+  </section>
+  <footer class="foot">© <span id="yr"></span> Band Up · IELTS Listening & Reading practice</footer>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section id="view-dashboard" class="view hidden">
+  <div class="wrap">
+    <div class="page-head">
+      <div><div class="mono muted" id="todayLabel"></div><h2>Daily <span class="serif">Tasks</span></h2></div>
+      <div class="seg-row">
+        <div class="seg" id="taskKind">
+          <button type="button" class="active" data-kind="reading">Reading</button>
+          <button type="button" data-kind="listening">Listening</button>
+        </div>
+        <input id="search" class="input search" placeholder="Search…">
+      </div>
+    </div>
+    <div id="todayBox"></div>
+    <h3 class="sub">Previous passages</h3>
+    <div class="list" id="passageList"></div>
+    <p class="muted empty hidden" id="emptyMsg">No passages published yet. Check back soon.</p>
+  </div>
+</section>
+
+<!-- ============ SPEAKING ============ -->
+<section id="view-speaking" class="view hidden">
+  <div class="wrap">
+    <div class="page-head">
+      <div><div class="mono muted">WATCH &amp; PRACTISE</div><h2>Speak<span class="serif">ing</span></h2></div>
+      <div class="seg-row"><input id="spSearch" class="input search" placeholder="Search…"></div>
+    </div>
+    <div class="sp-stage hidden" id="spStage">
+      <div class="sp-player" id="spPlayer">
+        <video id="spVideo" playsinline preload="metadata" controlsList="nodownload" disablePictureInPicture></video>
+        <div class="sp-flash" id="spFlash"></div>
+        <button class="sp-big" id="spBig" type="button" aria-label="Play"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <div class="sp-ctrl" id="spCtrl">
+          <input type="range" id="spSeek" min="0" max="1000" value="0" step="1" aria-label="Seek">
+          <div class="sp-row">
+            <div class="sp-grp">
+              <button type="button" class="sp-b" id="spBack" aria-label="Back 10 seconds" title="Back 10s (←)"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg><i>10</i></button>
+              <button type="button" class="sp-b sp-play" id="spPlay" aria-label="Play / pause" title="Play / pause (Space)"></button>
+              <button type="button" class="sp-b" id="spFwd" aria-label="Forward 10 seconds" title="Forward 10s (→)"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 4v4.5H16"/></svg><i>10</i></button>
+              <span class="sp-time mono" id="spTime">0:00 / 0:00</span>
+            </div>
+            <div class="sp-grp">
+              <button type="button" class="sp-b sp-txt" id="spSpeed" aria-label="Playback speed" title="Speed">1×</button>
+              <button type="button" class="sp-b" id="spMute" aria-label="Mute" title="Mute (M)"></button>
+              <button type="button" class="sp-b" id="spFull" aria-label="Full screen" title="Full screen (F)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sp-info"><h3 id="spTitle"></h3><div class="meta" id="spMeta"></div><p class="muted" id="spNotes"></p></div>
+    </div>
+    <h3 class="sub" id="spSub">All videos</h3>
+    <div class="list" id="spList"></div>
+    <p class="muted empty hidden" id="spEmpty">No speaking videos yet. Check back soon.</p>
+  </div>
+</section>
+
+<!-- ============ BOARD ============ -->
+<section id="view-board" class="view hidden">
+  <div class="wrap">
+    <div class="page-head">
+      <div><div class="mono muted">RANKINGS</div><h2>Leader<span class="serif">board</span></h2></div>
+      <div class="seg-row">
+        <div class="seg" id="boardRange">
+          <button type="button" class="active" data-range="week">This week</button>
+          <button type="button" data-range="all">All time</button>
+        </div>
+      </div>
+    </div>
+    <div class="board" id="boardList"></div>
+    <p class="muted empty hidden" id="boardEmpty">No results for this period yet. Finish a test to get on the board!</p>
+  </div>
+</section>
+
+<!-- ============ READER ============ -->
+<section id="view-reader" class="view hidden">
+  <div class="reader-bar">
+    <button class="btn ghost" id="btnBack">← Back</button>
+    <div class="rt" id="rTitle"></div>
+    <div class="timer mono" id="timer">20:00</div>
+    <button class="btn ghost" id="btnTimer">Start timer</button>
+    <button class="btn primary" id="btnFull" type="button" aria-label="Full screen" title="Full screen">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      Full screen
+    </button>
+  </div>
+  <div class="fs-timer mono" id="fsTimer">00:00</div>
+  <button class="exit-full" id="btnExitFull" type="button" aria-label="Exit full screen" title="Exit full screen">✕</button>
+  <div class="reader">
+    <article class="pane passage" id="rBody"><div id="frameHost"></div><div id="textHost"></div></article>
+    <aside class="pane questions">
+      <h3>Questions</h3>
+      <div id="rQuestions" class="qtext"></div>
+      <div class="answers-box">
+        <button class="btn primary" id="btnReveal">Reveal answers</button>
+        <div id="rAnswers" class="qtext hidden"></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ ADMIN ============ -->
+<section id="view-admin" class="view hidden">
+  <div class="wrap">
+    <div class="page-head"><div><div class="mono muted">CONTROL ROOM</div><h2>Admin <span class="serif">Panel</span></h2></div></div>
+    <div class="tabs">
+      <button class="tab active" data-tab="t-add" data-kind="reading">Add Reading</button>
+      <button class="tab" data-tab="t-add" data-kind="listening">Add Listening</button>
+      <button class="tab" data-tab="t-speaking">Add Speaking</button>
+      <button class="tab" data-tab="t-passages">Passages</button>
+      <button class="tab" data-tab="t-users">Students</button>
+    </div>
+
+    <div class="tabpane" id="t-add">
+      <form id="passageForm" class="form card">
+        <input type="hidden" id="pId">
+        <input type="hidden" id="pKind" value="reading">
+        <h3 class="form-title" id="formTitle">Add a reading passage</h3>
+        <div class="row">
+          <label>Title<input class="input" id="pTitle" required placeholder="e.g. The Secret Life of Bees"></label>
+          <label>Topic<input class="input" id="pTopic" placeholder="Science, History, Nature…"></label>
+        </div>
+        <div class="row">
+          <label>Difficulty
+            <select class="input" id="pLevel"><option>Easy</option><option selected>Medium</option><option>Hard</option></select>
+          </label>
+          <label>Publish date<input class="input" type="date" id="pDate" required></label>
+        </div>
+        <div class="row">
+          <label>Unlock date &amp; time <small class="muted">(optional)</small><input class="input" type="datetime-local" id="pUnlock"></label>
+          <label><span id="pAfterLbl">Only after solving</span>
+            <select class="input after-sel" id="pAfter"><option value="">No requirement</option></select>
+          </label>
+        </div>
+        <div class="seg" role="tablist">
+          <button type="button" class="active" data-mode="file">Upload file</button>
+          <button type="button" data-mode="html">Paste HTML</button>
+          <button type="button" data-mode="text">Text form</button>
+        </div>
+        <div id="fileBlock" class="stack">
+          <label class="drop" id="dropZone" for="pFile">
+            <input type="file" id="pFile" accept=".html,.htm,.txt,text/html" multiple hidden>
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <b>Choose HTML file(s)</b>
+            <span class="muted">or drag and drop them here. The site reads the page for you.</span>
+          </label>
+          <div class="files" id="fileList"></div>
+          <p class="muted hint hidden" id="fileHint"></p>
+        </div>
+        <label id="htmlBlock">Full passage HTML <small class="muted">(paste your whole page: passage, questions, everything)</small>
+          <textarea class="input" id="pHtml" rows="16" placeholder="&lt;!DOCTYPE html&gt; … paste your HTML here …"></textarea>
+        </label>
+        <div id="textBlock" class="stack hidden">
+        <label id="audioRow" class="hidden">Audio link <small class="muted">(a direct https:// link to the mp3 file)</small>
+          <input class="input" id="pAudio" placeholder="https://example.com/audio.mp3">
+        </label>
+        <label>Passage text <small class="muted">(separate paragraphs with a blank line)</small>
+          <textarea class="input" id="pBody" rows="12" required placeholder="Paste the reading passage here…"></textarea>
+        </label>
+        <label>Questions
+          <textarea class="input" id="pQuestions" rows="8" placeholder="Questions 1–5&#10;Do the following statements agree with the information in the passage?&#10;1. …"></textarea>
+        </label>
+        <label>Answer key
+          <textarea class="input" id="pAnswers" rows="4" placeholder="1. TRUE&#10;2. FALSE&#10;3. NOT GIVEN"></textarea>
+        </label>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" type="submit" id="pSubmit">Publish passage</button>
+          <button class="btn ghost" type="button" id="pCancel" hidden>Cancel edit</button>
+          <span class="msg" id="pMsg"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="tabpane hidden" id="t-speaking">
+      <form id="spForm" class="form card">
+        <input type="hidden" id="spId">
+        <h3 class="form-title" id="spFormTitle">Add a speaking video</h3>
+        <div class="row">
+          <label>Title<input class="input" id="spFTitle" placeholder="e.g. Part 2: Describe a place you visited"></label>
+          <label>Topic<input class="input" id="spFTopic" placeholder="Part 1, Part 2, Part 3, Tips…"></label>
+        </div>
+        <div class="row">
+          <label>Publish date<input class="input" type="date" id="spFDate" required></label>
+          <span></span>
+        </div>
+        <div class="row">
+          <label>Unlock date &amp; time <small class="muted">(optional)</small><input class="input" type="datetime-local" id="spFUnlock"></label>
+          <label>Only after watching
+            <select class="input after-sel" id="spFAfter"><option value="">No requirement</option></select>
+          </label>
+        </div>
+        <div class="seg" id="spMode">
+          <button type="button" class="active" data-spmode="file">Upload video</button>
+          <button type="button" data-spmode="link">Video link</button>
+        </div>
+        <div id="spFileBlock" class="stack">
+          <label class="drop" id="spDrop" for="spFile">
+            <input type="file" id="spFile" accept="video/*,.mp4,.mov,.webm,.m4v" multiple hidden>
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2.5v9L17 14"/></svg>
+            <b>Choose video file(s)</b>
+            <span class="muted">or drag and drop. MP4 works best. Each file becomes one lesson.</span>
+          </label>
+          <div class="files" id="spFiles"></div>
+          <p class="muted hint">Supabase free plan allows up to 50 MB per file. Compress longer videos first.</p>
+        </div>
+        <label id="spLinkBlock" class="hidden">Video link <small class="muted">(a direct https:// link to an .mp4 file)</small>
+          <input class="input" id="spLink" placeholder="https://example.com/video.mp4">
+        </label>
+        <label>Notes <small class="muted">(optional: tips, vocabulary, questions shown under the video)</small>
+          <textarea class="input" id="spNotes2" rows="5" placeholder="Key phrases, sample questions…"></textarea>
+        </label>
+        <div class="sp-prog hidden" id="spProg"><div class="bar"><i id="spBar"></i></div><span class="mono muted" id="spProgTxt"></span></div>
+        <div class="form-actions">
+          <button class="btn primary" type="submit" id="spSubmit">Publish video</button>
+          <button class="btn ghost" type="button" id="spCancel" hidden>Cancel edit</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tabpane hidden" id="t-passages">
+      <div class="seg" id="adminKind">
+        <button type="button" class="active" data-akind="all">All</button>
+        <button type="button" data-akind="reading">Reading</button>
+        <button type="button" data-akind="listening">Listening</button>
+        <button type="button" data-akind="speaking">Speaking</button>
+      </div>
+      <div class="table" id="adminPassages"></div>
+    </div>
+
+    <div class="tabpane hidden" id="t-users">
+      <form id="userForm" class="form card">
+        <h3>Create student profile</h3>
+        <div class="row">
+          <label>Full name<input class="input" id="uName" required></label>
+          <label>Email<input class="input" id="uEmail" type="email" required></label>
+        </div>
+        <div class="row">
+          <label>Password<input class="input" id="uPass" type="text" minlength="6" required placeholder="min. 6 characters"></label>
+          <label>Role
+            <select class="input" id="uRole"><option value="student">Student</option><option value="admin">Admin</option></select>
+          </label>
+        </div>
+        <div class="form-actions"><button class="btn primary" type="submit">Create profile</button><span class="msg" id="uMsg"></span></div>
+      </form>
+      <div class="table" id="adminUsers"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ============ LOGIN MODAL ============ -->
+<div class="modal hidden" id="loginModal">
+  <div class="modal-card">
+    <button class="x" id="closeLogin" aria-label="Close">✕</button>
+    <div class="brand big-brand"><span class="dot"></span>Band<em>Up</em></div>
+    <h3>Welcome back</h3>
+    <p class="muted">Use the credentials your teacher gave you.</p>
+    <form id="loginForm">
+      <label>Email<input class="input" id="lEmail" type="email" required autocomplete="username"></label>
+      <label>Password
+        <span class="pw-wrap">
+          <input class="input" id="lPass" type="password" required autocomplete="current-password">
+          <button type="button" class="eye" id="togglePass" aria-label="Show password" title="Show password">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
+              <line class="slash" x1="3" y1="3" x2="21" y2="21"/>
+            </svg>
+          </button>
+        </span>
+      </label>
+      <button class="btn primary full" type="submit" id="lSubmit">Log in</button>
+      <div class="msg err" id="lMsg"></div>
+    </form>
+    <p class="help">Struggling to LOG IN the website? Contact <a href="https://t.me/piccoe" target="_blank" rel="noopener noreferrer">https://t.me/piccoe</a></p>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
