@@ -53,6 +53,7 @@
   let timerId = null;
   let readerIsHtml = false;
   let dashKind = "reading";
+  let doneIds = new Set();   // ids of passages this student has finished
 
   const todayStr = () => new Date().toISOString().slice(0, 10);
   const fmtDate = d => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -61,23 +62,21 @@
   // newest first: by date, then by number in the title (#11 before #10), then by upload time
   const newestFirst = (a, b) => b.publish_date.localeCompare(a.publish_date) || (b.title || "").localeCompare(a.title || "", undefined, { numeric: true }) || (b.created_at || "").localeCompare(a.created_at || "");
 
-  /* ---------- locks: unlock date + "only after" ---------- */
-  let solved = new Set(), titles = new Map();
-  const VERB = { reading: "solving", listening: "completing", speaking: "watching" };
+  /* ---------- locks: unlock date/time + "only after solving ..." ---------- */
+  const LOCK_VERB = { reading: "solving", listening: "completing", speaking: "watching" };
   const fmtDT = iso => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const toLocalInput = iso => { if (!iso) return ""; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
-  const fromLocalInput = v => v ? new Date(v).toISOString() : null;
-  function lockReasons(p) {
-    const r = [];
-    if (p.unlock_at && new Date(p.unlock_at) > new Date()) r.push("Unlocks " + fmtDT(p.unlock_at));
-    if (p.only_after && !solved.has(p.only_after)) r.push("Only after " + (VERB[p.kind || "reading"] || "solving") + " " + (titles.get(p.only_after) || "the previous test"));
-    return r;
+  const toLocalInput = iso => { if (!iso) return ""; const d = new Date(iso), z = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes()); };
+  function lockInfo(p, pool) {
+    if (profile?.role === "admin") return null;
+    if (p.unlock_after && !doneIds.has(p.unlock_after)) {
+      const pre = pool.find(x => x.id === p.unlock_after);
+      return "Only after " + (LOCK_VERB[p.kind || "reading"] || "solving") + " " + (pre ? pre.title : "the previous test");
+    }
+    if (p.unlock_at && new Date(p.unlock_at) > new Date()) return "Unlocks on " + fmtDT(p.unlock_at);
+    return null;
   }
-  function lockBox(reasons) {
-    const b = el("div", "lockbox");
-    reasons.forEach(t => b.appendChild(el("span", "lock-pill", t)));
-    return b;
-  }
+  const LOCK_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  function lockGlass(text) { const g = el("div", "lock-glass"); g.innerHTML = LOCK_SVG; g.appendChild(el("span", "", text)); return g; }
 
   function toast(msg, err) {
     const t = $("#toast"); t.textContent = msg; t.classList.toggle("err", !!err); t.classList.remove("hidden");
@@ -163,15 +162,13 @@
   async function loadPassages() {
     $("#todayLabel").textContent = fmtDate(todayStr());
     $$("#taskKind button").forEach(b => b.classList.toggle("active", b.dataset.kind === dashKind));
-    const { data, error } = await sb.from("passages").select("*").eq("kind", dashKind).lte("publish_date", todayStr()).order("publish_date", { ascending: false });
-    if (error) { toast("Could not load passages: " + error.message, true); return; }
-    const [att, tt] = await Promise.all([
-      sb.from("attempts").select("passage_id").eq("user_id", profile.id).eq("finished", true),
-      sb.from("passages").select("id,title").lte("publish_date", todayStr())
+    const [res, done] = await Promise.all([
+      sb.from("passages").select("*").eq("kind", dashKind).lte("publish_date", todayStr()).order("publish_date", { ascending: false }),
+      sb.from("attempts").select("passage_id").eq("user_id", profile.id).eq("finished", true)
     ]);
-    solved = new Set((att.data || []).map(a => a.passage_id));
-    titles = new Map((tt.data || []).map(t => [t.id, t.title]));
-    passages = data.sort(newestFirst); renderPassages();
+    if (res.error) { toast("Could not load passages: " + res.error.message, true); return; }
+    doneIds = new Set((done.data || []).map(a => a.passage_id));
+    passages = res.data.sort(newestFirst); renderPassages();
   }
   function renderPassages() {
     const q = $("#search").value.trim().toLowerCase();
@@ -181,21 +178,23 @@
     $("#emptyMsg").classList.toggle("hidden", passages.length > 0);
     const today = filtered[0]; // newest passage = big card
     if (today) {
-      const lk = lockReasons(today);
-      const c = el("div", "today" + (lk.length ? " locked" : ""));
-      if (lk.length) c.appendChild(lockBox(lk));
+      const c = el("div", "today");
       const m = el("div", "meta"); m.append(el("span", "tag", (today.publish_date === todayStr() ? "TODAY'S " : "LATEST ") + (today.kind === "listening" ? "LISTENING" : "PASSAGE")), el("span", "chip lv-" + today.level, today.level), el("span", "chip", today.topic || "General"));
-      c.append(m, el("h3", "", today.title), el("p", "", preview(today)));
-      if (!lk.length) c.appendChild(el("span", "btn primary", today.kind === "listening" ? "Start LISTENING →" : "Start reading →"));
-      c.onclick = () => openReader(today); todayBox.appendChild(c);
+      c.append(m, el("h3", "", today.title), el("p", "", preview(today)), el("span", "btn primary", today.kind === "listening" ? "Start LISTENING →" : "Start reading →"));
+      const lk = lockInfo(today, passages);
+      if (lk) { c.classList.add("locked"); c.appendChild(lockGlass(lk)); c.onclick = () => toast(lk, true); }
+      else c.onclick = () => openReader(today);
+      todayBox.appendChild(c);
     }
     filtered.filter(p => p !== today).forEach(p => {
-      const lk = lockReasons(p);
-      const it = el("div", "item" + (lk.length ? " locked" : "")); const l = el("div");
-      if (lk.length) l.appendChild(lockBox(lk));
+      const it = el("div", "item"); const l = el("div");
       l.append(el("h4", "", p.title));
       const m = el("div", "meta"); m.append(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip lv-" + p.level, p.level), el("span", "chip", p.topic || "General")); l.appendChild(m);
-      it.append(l, el("span", "mono muted", lk.length ? "LOCKED" : "OPEN →")); it.onclick = () => openReader(p); list.appendChild(it);
+      it.append(l, el("span", "mono muted", "OPEN →"));
+      const lk = lockInfo(p, passages);
+      if (lk) { it.classList.add("locked"); it.appendChild(lockGlass(lk)); it.onclick = () => toast(lk, true); }
+      else it.onclick = () => openReader(p);
+      list.appendChild(it);
     });
   }
   $("#search").addEventListener("input", renderPassages);
@@ -258,13 +257,13 @@
     if (att && att.pid === ent.pid && !att.finished) {
       att.base = elapsed(); att.t0 = null; att.finished = true; ent.secs = att.base; stopTick(); paintClock();
       await saveAttempt({ score: +d.score, total: +d.total || 40, finished: true, finished_at: new Date().toISOString() });
+      doneIds.add(ent.pid);
       toast("Result saved to the leaderboard");
     }
   });
 
   function openReader(p) {
-    const lk = lockReasons(p);
-    if (lk.length) { toast(lk.join(" · "), true); return; }
+    const lk = lockInfo(p, passages); if (lk) return toast(lk, true);
     $("#rTitle").textContent = p.title;
     const isHtml = !!p.html;
     readerIsHtml = isHtml;
@@ -343,10 +342,10 @@
     const rows = [...users.values()].sort((a, b) => b.points - a.points || a.secs - b.secs);
     empty.classList.toggle("hidden", rows.length > 0);
     if (!rows.length) return;
-    const head = el("div", "brow bhead"); head.append(el("span", "", "RANK"), el("span", "", "NAME"), el("span", "ts", "TESTS"), el("span", "", "SCORE"), el("span", "", "TIME")); list.appendChild(head);
+    const head = el("div", "brow bhead"); head.append(el("span", "", "RANK"), el("span", "", "NAME"), el("span", "", "TIME")); list.appendChild(head);
     rows.forEach((u, i) => {
       const r = el("div", "brow" + (i < 3 ? " r" + (i + 1) : "") + (u.id === profile?.id ? " me" : ""));
-      r.append(el("span", "rank", String(i + 1)), el("span", "nm", u.name || "Student"), el("span", "ts mono", u.tests + (u.tests === 1 ? " test" : " tests")), el("span", "sc", String(u.points)), el("span", "tm mono", longTime(u.secs)));
+      r.append(el("span", "rank", String(i + 1)), el("span", "nm", u.name || "Student"), el("span", "tm mono", longTime(u.secs)));
       list.appendChild(r);
     });
   }
@@ -376,6 +375,14 @@
   });
   $("#pDate").value = todayStr();
 
+  let adminAll = [];   // all passages, to fill the "Only after ..." list
+  const AFTER_LABEL = { reading: "Only after solving", listening: "Only after completing" };
+  function fillAfter(sel) {
+    const s = $("#pAfter"), kind = $("#pKind").value, cur = sel !== undefined ? sel : s.value, me = $("#pId").value;
+    s.replaceChildren(new Option("— No requirement —", ""));
+    adminAll.filter(p => (p.kind || "reading") === kind && p.id !== me).sort(newestFirst).forEach(p => s.add(new Option(p.title, p.id)));
+    s.value = [...s.options].some(o => o.value === cur) ? cur : "";
+  }
   let mode = "file";
   let picked = []; // [{ name, html, title, size }]
   function setMode(m) {
@@ -391,8 +398,9 @@
     const listening = $("#pKind").value === "listening";
     $("#formTitle").textContent = listening ? "Add a listening test" : "Add a reading passage";
     $("#pTitle").placeholder = listening ? "e.g. Listening Test 1" : "e.g. The Secret Life of Bees";
-    $("#pAfterLbl").textContent = listening ? "Only after completing" : "Only after solving";
     $("#audioRow").classList.toggle("hidden", !listening);
+    $("#pAfterLabel").textContent = AFTER_LABEL[listening ? "listening" : "reading"];
+    fillAfter();
     $("#pBody").required = mode === "text" && !listening;
   }
   $("#pKind").addEventListener("change", applyKind);
@@ -440,9 +448,9 @@
 
   $("#passageForm").addEventListener("submit", async e => {
     e.preventDefault();
-    const base = { kind: $("#pKind").value, audio_url: null, topic: $("#pTopic").value.trim() || null, level: $("#pLevel").value, body: null, questions: null, answers: null, unlock_at: fromLocalInput($("#pUnlock").value), only_after: $("#pAfter").value || null };
+    const base = { kind: $("#pKind").value, audio_url: null, topic: $("#pTopic").value.trim() || null, level: $("#pLevel").value, body: null, questions: null, answers: null,
+      unlock_at: $("#pUnlockAt").value ? new Date($("#pUnlockAt").value).toISOString() : null, unlock_after: $("#pAfter").value || null };
     const id = $("#pId").value;
-    if (id && base.only_after === id) base.only_after = null;
     let rows;
     if (mode === "file") {
       if (!picked.length) return toast("Choose an HTML file first", true);
@@ -469,39 +477,23 @@
     $$("#adminKind button").forEach(x => x.classList.toggle("active", x === b));
     loadAdminPassages();
   });
-  // "Only after" dropdowns (reading / listening / speaking forms): every test uploaded so far
-  function fillAfterSelects(all) {
-    const tests = all.filter(p => (p.kind || "reading") !== "speaking").sort(newestFirst);
-    $$("select.after-sel").forEach(sel => {
-      const keep = sel.value;
-      sel.replaceChildren(new Option("No requirement", ""));
-      ["reading", "listening"].forEach(k => {
-        const items = tests.filter(p => (p.kind || "reading") === k);
-        if (!items.length) return;
-        const g = document.createElement("optgroup"); g.label = k === "reading" ? "Reading" : "Listening";
-        items.forEach(p => g.appendChild(new Option(p.title, p.id)));
-        sel.appendChild(g);
-      });
-      sel.value = keep;
-    });
-  }
   async function loadAdminPassages() {
     const res = await sb.from("passages").select("*").order("publish_date", { ascending: false });
     const box = $("#adminPassages"); box.replaceChildren();
     if (res.error) return toast(res.error.message, true);
-    fillAfterSelects(res.data);
+    adminAll = res.data; fillAfter();
     const data = res.data.filter(p => adminKind === "all" || (p.kind || "reading") === adminKind).sort(newestFirst);
     if (!data.length) box.appendChild(el("p", "muted", "Nothing here yet."));
     data.forEach(p => {
       const r = el("div", "trow"); const g = el("div", "grow");
-      g.append(el("b", "", p.title), el("span", "muted mono", (p.kind || "reading").toUpperCase() + " · " + fmtDate(p.publish_date) + " · " + p.level + (p.publish_date > todayStr() ? " · SCHEDULED" : "") + (p.unlock_at ? " · UNLOCK " + fmtDT(p.unlock_at) : "") + (p.only_after ? " · AFTER " + (res.data.find(x => x.id === p.only_after)?.title || "?") : "")));
+      g.append(el("b", "", p.title), el("span", "muted mono", (p.kind || "reading").toUpperCase() + " · " + fmtDate(p.publish_date) + " · " + p.level + (p.publish_date > todayStr() ? " · SCHEDULED" : "")));
       const a = el("div", "acts"); const ed = el("button", "btn sm", "Edit"), del = el("button", "btn sm danger", "Delete");
       ed.onclick = () => {
         $(`.tab[data-kind="${p.kind === "listening" ? "listening" : "reading"}"]`).click();
         $("#pId").value = p.id; $("#pTitle").value = p.title; $("#pTopic").value = p.topic || ""; $("#pLevel").value = p.level; $("#pDate").value = p.publish_date;
         $("#pHtml").value = p.html || ""; $("#pBody").value = p.body || ""; $("#pQuestions").value = p.questions || ""; $("#pAnswers").value = p.answers || "";
         $("#pKind").value = p.kind || "reading"; $("#pAudio").value = p.audio_url || "";
-        $("#pUnlock").value = toLocalInput(p.unlock_at); $("#pAfter").value = p.only_after || "";
+        $("#pUnlockAt").value = toLocalInput(p.unlock_at); fillAfter(p.unlock_after || "");
         setMode(p.html ? "html" : "text");
         $("#pSubmit").textContent = "Save changes"; $("#pCancel").hidden = false;
         window.scrollTo(0, 0);
