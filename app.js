@@ -68,8 +68,8 @@
   const toLocalInput = iso => { if (!iso) return ""; const d = new Date(iso), z = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes()); };
   function lockInfo(p, pool) {
     if (profile?.role === "admin") return null;
-    if (p.unlock_after && !doneIds.has(p.unlock_after)) {
-      const pre = pool.find(x => x.id === p.unlock_after);
+    if (p.only_after && !doneIds.has(p.only_after)) {
+      const pre = pool.find(x => x.id === p.only_after);
       return "Only after " + (LOCK_VERB[p.kind || "reading"] || "solving") + " " + (pre ? pre.title : "the previous test");
     }
     if (p.unlock_at && new Date(p.unlock_at) > new Date()) return "Unlocks on " + fmtDT(p.unlock_at);
@@ -399,7 +399,7 @@
     $("#formTitle").textContent = listening ? "Add a listening test" : "Add a reading passage";
     $("#pTitle").placeholder = listening ? "e.g. Listening Test 1" : "e.g. The Secret Life of Bees";
     $("#audioRow").classList.toggle("hidden", !listening);
-    $("#pAfterLabel").textContent = AFTER_LABEL[listening ? "listening" : "reading"];
+    $("#pAfterLbl").textContent = AFTER_LABEL[listening ? "listening" : "reading"];
     fillAfter();
     $("#pBody").required = mode === "text" && !listening;
   }
@@ -449,7 +449,7 @@
   $("#passageForm").addEventListener("submit", async e => {
     e.preventDefault();
     const base = { kind: $("#pKind").value, audio_url: null, topic: $("#pTopic").value.trim() || null, level: $("#pLevel").value, body: null, questions: null, answers: null,
-      unlock_at: $("#pUnlockAt").value ? new Date($("#pUnlockAt").value).toISOString() : null, unlock_after: $("#pAfter").value || null };
+      unlock_at: $("#pUnlock").value ? new Date($("#pUnlock").value).toISOString() : null, only_after: $("#pAfter").value || null };
     const id = $("#pId").value;
     let rows;
     if (mode === "file") {
@@ -493,7 +493,7 @@
         $("#pId").value = p.id; $("#pTitle").value = p.title; $("#pTopic").value = p.topic || ""; $("#pLevel").value = p.level; $("#pDate").value = p.publish_date;
         $("#pHtml").value = p.html || ""; $("#pBody").value = p.body || ""; $("#pQuestions").value = p.questions || ""; $("#pAnswers").value = p.answers || "";
         $("#pKind").value = p.kind || "reading"; $("#pAudio").value = p.audio_url || "";
-        $("#pUnlockAt").value = toLocalInput(p.unlock_at); fillAfter(p.unlock_after || "");
+        $("#pUnlock").value = toLocalInput(p.unlock_at); fillAfter(p.only_after || "");
         setMode(p.html ? "html" : "text");
         $("#pSubmit").textContent = "Save changes"; $("#pCancel").hidden = false;
         window.scrollTo(0, 0);
