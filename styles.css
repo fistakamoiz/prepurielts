@@ -319,3 +319,17 @@ body.reading-html .reader.html-mode{height:calc(100vh - 58px)}
   text-shadow:0 1px 10px rgba(0,0,0,.45)}
 .lock-glass svg{flex:none}
 .today.locked .lock-glass{font-size:1.25rem}
+
+/* YouTube-backed lessons: no YouTube buttons/title/logo, only our glass controls */
+.sp-yt{position:absolute;inset:0;display:none;overflow:hidden;background:#000}
+.sp-player.yt .sp-yt{display:block}
+.sp-player.yt #spVideo{display:none}
+.sp-yt iframe{position:absolute;left:50%;top:50%;width:100%;height:100%;border:0;pointer-events:none;transform:translate(-50%,-50%) scale(1.16)}
+.sp-shield{position:absolute;inset:0;z-index:1;background:transparent}
+.sp-big,.sp-flash{z-index:2}
+.sp-ctrl{z-index:3}
+/* glass rim around the whole player */
+.sp-player{border-color:rgba(255,255,255,.22)}
+.sp-player::before{content:"";position:absolute;inset:0;z-index:4;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.28),inset 0 1.5px 1px rgba(255,255,255,.55),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 46px rgba(255,255,255,.07)}
+.sp-player:fullscreen::before{display:none}

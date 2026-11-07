@@ -125,6 +125,8 @@
     <div class="sp-stage hidden" id="spStage">
       <div class="sp-player" id="spPlayer">
         <video id="spVideo" playsinline preload="metadata" controlsList="nodownload" disablePictureInPicture></video>
+        <div class="sp-yt" id="spYT"><div id="spYTfr"></div></div>
+        <div class="sp-shield" id="spShield"></div>
         <div class="sp-flash" id="spFlash"></div>
         <button class="sp-big" id="spBig" type="button" aria-label="Play"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
         <div class="sp-ctrl" id="spCtrl">
@@ -301,8 +303,8 @@
           <div class="files" id="spFiles"></div>
           <p class="muted hint">Supabase free plan allows up to 50 MB per file. Compress longer videos first.</p>
         </div>
-        <label id="spLinkBlock" class="hidden">Video link <small class="muted">(a direct https:// link to an .mp4 file)</small>
-          <input class="input" id="spLink" placeholder="https://example.com/video.mp4">
+        <label id="spLinkBlock" class="hidden">Video link <small class="muted">(a YouTube link, or a direct https:// link to an .mp4 file)</small>
+          <input class="input" id="spLink" placeholder="https://www.youtube.com/watch?v=… or https://example.com/video.mp4">
         </label>
         <label>Notes <small class="muted">(optional: tips, vocabulary, questions shown under the video)</small>
           <textarea class="input" id="spNotes2" rows="5" placeholder="Key phrases, sample questions…"></textarea>

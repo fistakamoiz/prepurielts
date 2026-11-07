@@ -1,6 +1,6 @@
 (() => {
   /* ---------- intro animation ---------- */
-  const WORD = "prepielts", GAP = 2, DOT = 0.8, HOLD = 150, DURATION = 1000, SHOW = 2900;
+  const WORD = "bandup", GAP = 2, DOT = 0.8, HOLD = 150, DURATION = 1000, SHOW = 2900;
   try { if (localStorage.getItem("introSeen")) return; localStorage.setItem("introSeen", "1"); } catch (e) {}
   const box = document.createElement("div"); box.id = "intro";
   const cv = document.createElement("canvas"); box.appendChild(cv); document.body.appendChild(box);
@@ -97,7 +97,8 @@
   /* ---------- views ---------- */
   function show(view) {
     if (view === "tasks") view = "dashboard";
-    if ((view === "dashboard" || view === "reader" || view === "board") && !profile) view = "landing";
+    if ((view === "dashboard" || view === "reader" || view === "board" || view === "speaking") && !profile) view = "landing";
+    if (view !== "speaking") spPause();
     if (view !== "reader") { openToken++; pauseAttempt(); $$("#textHost audio").forEach(a => a.pause()); }
     if (view === "admin" && profile?.role !== "admin") view = profile ? "dashboard" : "landing";
     $$(".view").forEach(v => v.classList.add("hidden"));
@@ -106,6 +107,7 @@
     window.scrollTo(0, 0);
     if (view === "dashboard") loadPassages();
     if (view === "board") loadBoard();
+    if (view === "speaking") loadSpeaking();
     if (view === "admin") { loadAdminPassages(); loadUsers(); }
   }
   document.addEventListener("click", e => {
@@ -323,7 +325,7 @@
   const longTime = sec => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60; return h ? h + "h " + m + "m" : m ? m + "m " + x + "s" : x + "s"; };
   async function renderBoard() {
     const list = $("#boardList"), empty = $("#boardEmpty");
-    let q = sb.from("attempts").select("user_id,passage_id,full_name,score,total,elapsed_seconds,finished_at").eq("finished", true);
+    let q = sb.from("attempts").select("user_id,passage_id,full_name,score,total,elapsed_seconds,finished_at").eq("finished", true).neq("kind", "speaking");
     if (boardRange === "week") q = q.gte("finished_at", weekStartISO());
     const { data, error } = await q;
     if (error) return toast(error.message, true);
@@ -377,11 +379,14 @@
 
   let adminAll = [];   // all passages, to fill the "Only after ..." list
   const AFTER_LABEL = { reading: "Only after solving", listening: "Only after completing" };
-  function fillAfter(sel) {
-    const s = $("#pAfter"), kind = $("#pKind").value, cur = sel !== undefined ? sel : s.value, me = $("#pId").value;
+  function fillAfterIn(s, kind, me, cur) {
     s.replaceChildren(new Option("— No requirement —", ""));
     adminAll.filter(p => (p.kind || "reading") === kind && p.id !== me).sort(newestFirst).forEach(p => s.add(new Option(p.title, p.id)));
     s.value = [...s.options].some(o => o.value === cur) ? cur : "";
+  }
+  function fillAfter(sel) {
+    fillAfterIn($("#pAfter"), $("#pKind").value, $("#pId").value, sel !== undefined ? sel : $("#pAfter").value);
+    fillAfterIn($("#spFAfter"), "speaking", $("#spId").value, $("#spFAfter").value);
   }
   let mode = "file";
   let picked = []; // [{ name, html, title, size }]
@@ -486,9 +491,10 @@
     if (!data.length) box.appendChild(el("p", "muted", "Nothing here yet."));
     data.forEach(p => {
       const r = el("div", "trow"); const g = el("div", "grow");
-      g.append(el("b", "", p.title), el("span", "muted mono", (p.kind || "reading").toUpperCase() + " · " + fmtDate(p.publish_date) + " · " + p.level + (p.publish_date > todayStr() ? " · SCHEDULED" : "")));
+      g.append(el("b", "", p.title), el("span", "muted mono", (p.kind || "reading").toUpperCase() + " · " + fmtDate(p.publish_date) + (p.kind === "speaking" ? "" : " · " + p.level) + (p.publish_date > todayStr() ? " · SCHEDULED" : "")));
       const a = el("div", "acts"); const ed = el("button", "btn sm", "Edit"), del = el("button", "btn sm danger", "Delete");
       ed.onclick = () => {
+        if (p.kind === "speaking") { editSpeaking(p); return; }
         $(`.tab[data-kind="${p.kind === "listening" ? "listening" : "reading"}"]`).click();
         $("#pId").value = p.id; $("#pTitle").value = p.title; $("#pTopic").value = p.topic || ""; $("#pLevel").value = p.level; $("#pDate").value = p.publish_date;
         $("#pHtml").value = p.html || ""; $("#pBody").value = p.body || ""; $("#pQuestions").value = p.questions || ""; $("#pAnswers").value = p.answers || "";
@@ -498,10 +504,314 @@
         $("#pSubmit").textContent = "Save changes"; $("#pCancel").hidden = false;
         window.scrollTo(0, 0);
       };
-      del.onclick = async () => { if (!confirm("Delete this passage?")) return; const { error } = await sb.from("passages").delete().eq("id", p.id); if (error) return toast(error.message, true); toast("Deleted"); loadAdminPassages(); };
+      del.onclick = async () => { if (!confirm("Delete this passage?")) return; const { error } = await sb.from("passages").delete().eq("id", p.id); if (error) return toast(error.message, true); if (p.video_path) sb.storage.from("speaking").remove([p.video_path]); toast("Deleted"); loadAdminPassages(); };
       a.append(ed, del); r.append(g, a); box.appendChild(r);
     });
   }
+
+  /* ---------- speaking (video lessons) ---------- */
+  const ICON = {
+    play: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
+    vol: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+    mute: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>'
+  };
+  const fmtT = s => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2, "0"); return h ? h + ":" + String(m).padStart(2, "0") + ":" + x : m + ":" + x; };
+  const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+  let spItems = [], spCur = null, spOpenTok = 0, spSeeking = false, spHideId = null;
+  const vidEl = $("#spVideo");
+  let spEng = vidEl;                       // current engine: the <video> tag, or the YouTube facade below
+  const spv = () => spEng;
+  // ----- YouTube: played through the YouTube player API, but without YouTube's own buttons, title or logo.
+  // The page draws its own controls and a transparent shield on top, so students only see the video.
+  const ytId = u => {
+    try {
+      const x = new URL(u), h = x.hostname.replace(/^(www|m)\./, ""); let id = null;
+      if (h === "youtu.be") id = x.pathname.slice(1).split("/")[0];
+      else if (h === "youtube.com" || h === "youtube-nocookie.com") {
+        if (x.pathname === "/watch") id = x.searchParams.get("v");
+        else { const m = x.pathname.match(/^\/(embed|shorts|live|v)\/([\w-]+)/); id = m && m[2]; }
+      }
+      return id && /^[\w-]{11}$/.test(id) ? id : null;
+    } catch (e) { return null; }
+  };
+  const ytEng = (() => {
+    const f = new EventTarget(); let pl = null, st = -1, poll = null, lastDur = 0;
+    const ev = n => f.dispatchEvent(new Event(n));
+    const api = () => new Promise((res, rej) => {
+      if (window.YT && window.YT.Player) return res();
+      const prev = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = () => { if (prev) prev(); res(); };
+      if (!document.getElementById("ytapi")) { const s = document.createElement("script"); s.id = "ytapi"; s.src = "https://www.youtube.com/iframe_api"; s.onerror = () => rej(new Error("The video player could not be loaded")); document.head.appendChild(s); }
+    });
+    function onState(e) {
+      st = e.data;
+      if (st === 1) { ev("play"); ev("playing"); } else if (st === 2) ev("pause"); else if (st === 0) { ev("pause"); ev("ended"); } else if (st === 3) ev("waiting"); else if (st === 5) ev("canplay");
+      ev("timeupdate");
+    }
+    Object.defineProperties(f, {
+      paused: { get: () => !(st === 1 || st === 3) },
+      ended: { get: () => st === 0 },
+      currentTime: { get: () => (pl && pl.getCurrentTime && pl.getCurrentTime()) || 0, set: t => { if (pl) { pl.seekTo(t, true); ev("timeupdate"); } } },
+      duration: { get: () => (pl && pl.getDuration && pl.getDuration()) || 0 },
+      playbackRate: { get: () => (pl && pl.getPlaybackRate && pl.getPlaybackRate()) || 1, set: r => { if (pl && pl.setPlaybackRate) pl.setPlaybackRate(r); } },
+      muted: { get: () => !!(pl && pl.isMuted && pl.isMuted()), set: m => { if (!pl) return; if (m) pl.mute(); else pl.unMute(); ev("volumechange"); } },
+      volume: { get: () => (pl && pl.getVolume ? pl.getVolume() / 100 : 1) },
+      src: { get: () => (pl ? "yt" : "") }
+    });
+    f.play = () => { if (pl && pl.playVideo) pl.playVideo(); return Promise.resolve(); };
+    f.pause = () => { if (pl && pl.pauseVideo) pl.pauseVideo(); };
+    f.stop = () => { if (pl && pl.stopVideo) { try { pl.stopVideo(); } catch (e) {} } st = -1; };
+    f.load = async (id, start) => {
+      await api(); st = -1;
+      const vars = { controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0, iv_load_policy: 3, cc_load_policy: 0, playsinline: 1, autoplay: 1, enablejsapi: 1, origin: location.origin };
+      if (pl) { pl.loadVideoById({ videoId: id, startSeconds: start || 0 }); return; }
+      await new Promise(resolve => {
+        pl = new YT.Player("spYTfr", { videoId: id, host: "https://www.youtube-nocookie.com", playerVars: Object.assign({ start: Math.floor(start || 0) }, vars),
+          events: { onReady: () => resolve(), onStateChange: onState, onError: () => { ev("ytError"); } } });
+      });
+      poll = setInterval(() => {
+        const d = f.duration; if (d !== lastDur) { lastDur = d; ev("durationchange"); }
+        if (st === 1) { if (d && f.currentTime >= d - 0.4) f.pause(); /* stop before YouTube's end-screen suggestions appear */ ev("timeupdate"); }
+      }, 250);
+    };
+    return f;
+  })();
+  function spPause() { try { vidEl.pause(); ytEng.pause(); } catch (e) {} }
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+  // a lesson counts as "watched" once the student reaches 90% of it (this unlocks "Only after watching ...")
+  async function markWatched() {
+    const p = spCur; if (!p || !profile || doneIds.has(p.id)) return;
+    doneIds.add(p.id);
+    const name = (profile.full_name || "").trim() || (profile.email || "").split("@")[0];
+    const { error } = await sb.from("attempts").insert({ passage_id: p.id, user_id: profile.id, full_name: name, kind: "speaking", finished: true, finished_at: new Date().toISOString() });
+    if (error) { doneIds.delete(p.id); console.error(error); } else { toast("Lesson completed"); renderSpeaking(); }
+  }
+  async function loadSpeaking() {
+    const [res, done] = await Promise.all([
+      sb.from("passages").select("*").eq("kind", "speaking").lte("publish_date", todayStr()).order("publish_date", { ascending: false }),
+      sb.from("attempts").select("passage_id").eq("user_id", profile.id).eq("finished", true)
+    ]);
+    if (res.error) { toast("Could not load videos: " + res.error.message, true); return; }
+    doneIds = new Set((done.data || []).map(x => x.passage_id));
+    spItems = res.data.sort(newestFirst); renderSpeaking();
+  }
+  function renderSpeaking() {
+    const q = $("#spSearch").value.trim().toLowerCase();
+    const list = $("#spList"); list.replaceChildren();
+    const items = spItems.filter(p => !q || (p.title + " " + (p.topic || "")).toLowerCase().includes(q));
+    $("#spEmpty").classList.toggle("hidden", spItems.length > 0);
+    $("#spSub").classList.toggle("hidden", !items.length);
+    items.forEach(p => {
+      const it = el("div", "item sp-item" + (spCur && spCur.id === p.id ? " playing" : ""));
+      const ic = el("div", "sp-ic"); ic.innerHTML = ICON.play;
+      const l = el("div", "grow"); l.appendChild(el("h4", "", p.title));
+      const m = el("div", "meta"); m.append(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || "Speaking")); l.appendChild(m);
+      it.append(ic, l, el("span", "mono muted", spCur && spCur.id === p.id ? "NOW PLAYING" : "WATCH →"));
+      const lk = lockInfo(p, spItems);
+      if (lk) { it.classList.add("locked"); it.appendChild(lockGlass(lk)); it.onclick = () => toast(lk, true); }
+      else it.onclick = () => openSpeaking(p);
+      list.appendChild(it);
+    });
+  }
+  $("#spSearch").addEventListener("input", renderSpeaking);
+
+  async function openSpeaking(p) {
+    const lk = lockInfo(p, spItems); if (lk) return toast(lk, true);
+    const tok = ++spOpenTok;
+    spPause();
+    spCur = p; $("#spStage").classList.remove("hidden");
+    $("#spTitle").textContent = p.title;
+    const m = $("#spMeta"); m.replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || "Speaking"));
+    $("#spNotes").textContent = p.notes || p.body || ""; $("#spNotes").classList.toggle("hidden", !(p.notes || p.body));
+    const pl = $("#spPlayer"), yid = p.video_url ? ytId(p.video_url) : null;
+    spEng = yid ? ytEng : vidEl; pl.classList.toggle("yt", !!yid);
+    pl.classList.add("loading"); setSpUI();
+    const saved = parseFloat(lsGet("spPos:" + p.id)), rate = +lsGet("spSpeed") || 1;
+    $("#spSpeed").textContent = rate + "×"; renderSpeaking(); $("#spStage").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (yid) {
+      const start = saved > 5 ? saved : 0;
+      ytEng.addEventListener("playing", () => { ytEng.playbackRate = rate; }, { once: true });
+      try { await ytEng.load(yid, start); } catch (err) { pl.classList.remove("loading"); toast(err.message, true); }
+      return;
+    }
+    let url = p.video_url || null;
+    if (!url && p.video_path) {
+      const r = await sb.storage.from("speaking").createSignedUrl(p.video_path, 6 * 3600);
+      if (tok !== spOpenTok) return;
+      if (r.error) { toast("Could not load the video: " + r.error.message, true); pl.classList.remove("loading"); return; }
+      url = r.data.signedUrl;
+    }
+    if (!url) { toast("This lesson has no video attached", true); pl.classList.remove("loading"); return; }
+    const v = vidEl; v.src = url; v.playbackRate = rate; v.load();
+    v.addEventListener("loadedmetadata", () => { if (saved > 5 && saved < v.duration - 5) v.currentTime = saved; }, { once: true });
+    v.play().catch(() => {});
+  }
+  function setSpUI() {
+    const v = spv(), playing = !v.paused && !v.ended;
+    $("#spPlay").innerHTML = playing ? ICON.pause : ICON.play;
+    $("#spPlayer").classList.toggle("playing", playing);
+    $("#spMute").innerHTML = v.muted || v.volume === 0 ? ICON.mute : ICON.vol;
+    const d = v.duration || 0, c = v.currentTime || 0;
+    $("#spTime").textContent = fmtT(c) + " / " + fmtT(d);
+    if (!spSeeking) { const pc = d ? c / d * 1000 : 0; $("#spSeek").value = pc; $("#spSeek").style.setProperty("--p", (pc / 10) + "%"); }
+  }
+  function spFlash(txt) { const f = $("#spFlash"); f.textContent = txt; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); }
+  function spSkip(sec) { const v = spv(); if (!v.duration) return; v.currentTime = Math.min(v.duration, Math.max(0, v.currentTime + sec)); spFlash((sec > 0 ? "+" : "−") + Math.abs(sec) + "s"); setSpUI(); spWake(); }
+  function spToggle() { const v = spv(); if (!v.src) return; if (v.paused) v.play().catch(() => {}); else v.pause(); spWake(); }
+  function spWake() { const p = $("#spPlayer"); p.classList.add("awake"); clearTimeout(spHideId); spHideId = setTimeout(() => { if (!spv().paused) p.classList.remove("awake"); }, 2600); }
+  (() => {
+    const pl = $("#spPlayer"), shield = $("#spShield");
+    const attach = v => {
+      ["play", "pause", "ended", "timeupdate", "volumechange", "durationchange"].forEach(ev => v.addEventListener(ev, () => { if (v === spEng) setSpUI(); }));
+      v.addEventListener("playing", () => pl.classList.remove("loading")); v.addEventListener("canplay", () => pl.classList.remove("loading"));
+      v.addEventListener("waiting", () => pl.classList.add("loading"));
+      v.addEventListener("error", () => { pl.classList.remove("loading"); if (v.src && v === vidEl) toast("The video could not be played", true); });
+      v.addEventListener("ytError", () => { pl.classList.remove("loading"); toast("This video can't be played right now. Ask your teacher to check the link.", true); });
+      v.addEventListener("pause", () => { spWake(); pl.classList.add("awake"); });
+      let lastSave = 0;
+      v.addEventListener("timeupdate", () => { if (v === spEng && spCur && Date.now() - lastSave > 4000) { lastSave = Date.now(); lsSet("spPos:" + spCur.id, v.currentTime); } });
+      v.addEventListener("ended", () => { if (v === spEng && spCur) { lsSet("spPos:" + spCur.id, 0); markWatched(); } });
+      v.addEventListener("timeupdate", () => { if (v === spEng && v.duration > 0 && v.currentTime / v.duration >= 0.9) markWatched(); });
+    };
+    attach(vidEl); attach(ytEng);
+    $("#spPlay").onclick = spToggle; $("#spBig").onclick = spToggle;
+    $("#spBack").onclick = () => spSkip(-10); $("#spFwd").onclick = () => spSkip(10);
+    $("#spSpeed").onclick = () => { const v = spv(); const i = SPEEDS.indexOf(v.playbackRate); const n = SPEEDS[(i + 1) % SPEEDS.length]; v.playbackRate = n; lsSet("spSpeed", n); $("#spSpeed").textContent = n + "×"; spFlash(n + "×"); };
+    $("#spMute").onclick = () => { const v = spv(); v.muted = !v.muted; };
+    const seek = $("#spSeek");
+    seek.addEventListener("input", () => { const v = spv(); spSeeking = true; if (v.duration) v.currentTime = seek.value / 1000 * v.duration; seek.style.setProperty("--p", (seek.value / 10) + "%"); $("#spTime").textContent = fmtT(v.currentTime) + " / " + fmtT(v.duration); });
+    seek.addEventListener("change", () => { spSeeking = false; });
+    const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+    $("#spFull").onclick = () => {
+      if (fsEl()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+      const req = pl.requestFullscreen || pl.webkitRequestFullscreen;
+      if (req) req.call(pl); else if (vidEl.webkitEnterFullscreen && spEng === vidEl) vidEl.webkitEnterFullscreen(); else toast("Full screen is not supported on this device", true);
+    };
+    // click on the picture: play/pause; double click left / right side: -10s / +10s
+    let tapT = null;
+    shield.addEventListener("click", e => {
+      if (wasHidden) { wasHidden = false; return; } // first tap on a phone only shows the controls
+      const r = shield.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+      if (tapT) { clearTimeout(tapT); tapT = null; if (x < 0.35) spSkip(-10); else if (x > 0.65) spSkip(10); else $("#spFull").click(); return; }
+      tapT = setTimeout(() => { tapT = null; spToggle(); }, 260);
+    });
+    let wasHidden = false;
+    pl.addEventListener("pointerdown", e => { wasHidden = e.pointerType === "touch" && pl.classList.contains("playing") && !pl.classList.contains("awake"); }, true);
+    pl.addEventListener("mousemove", spWake); pl.addEventListener("touchstart", spWake, { passive: true });
+    document.addEventListener("keydown", e => {
+      if ($("#view-speaking").classList.contains("hidden") || !spCur) return;
+      const t = e.target.tagName; if (t === "INPUT" && e.target.type !== "range" || t === "TEXTAREA" || t === "SELECT") return;
+      if (e.key === " " || e.key === "k") { e.preventDefault(); spToggle(); }
+      else if (e.key === "ArrowLeft" || e.key === "j") { e.preventDefault(); spSkip(-10); }
+      else if (e.key === "ArrowRight" || e.key === "l") { e.preventDefault(); spSkip(10); }
+      else if (e.key === "f") $("#spFull").click();
+      else if (e.key === "m") { const v = spv(); v.muted = !v.muted; }
+    });
+    setSpUI();
+  })();
+
+  /* ----- admin: add / edit speaking ----- */
+  let spMode = "file", spPicked = [], spEditing = null;
+  const nameToTitle = n => n.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "Speaking video";
+  const fmtSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
+  function setSpMode(m) {
+    spMode = m;
+    $$("#spMode button").forEach(b => b.classList.toggle("active", b.dataset.spmode === m));
+    $("#spFileBlock").classList.toggle("hidden", m !== "file"); $("#spLinkBlock").classList.toggle("hidden", m !== "link");
+  }
+  $$("#spMode button").forEach(b => b.onclick = () => setSpMode(b.dataset.spmode));
+  function renderSpPicked() {
+    const box = $("#spFiles"); box.replaceChildren();
+    spPicked.forEach((f, i) => {
+      const r = el("div", "fitem"); const x = el("button", "x", "✕"); x.type = "button";
+      x.onclick = () => { spPicked.splice(i, 1); renderSpPicked(); };
+      const nm = el("span", "grow", f.name); r.append(nm, el("span", "muted mono", fmtSize(f.size)), x); box.appendChild(r);
+    });
+  }
+  function addSpFiles(list) {
+    [...list].forEach(f => { if (/^video\//.test(f.type) || /\.(mp4|mov|webm|m4v|mkv)$/i.test(f.name)) spPicked.push(f); else toast(f.name + " is not a video file", true); });
+    renderSpPicked();
+  }
+  $("#spFile").onchange = e => { addSpFiles(e.target.files); e.target.value = ""; };
+  const sdz = $("#spDrop");
+  ["dragenter", "dragover"].forEach(ev => sdz.addEventListener(ev, e => { e.preventDefault(); sdz.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => sdz.addEventListener(ev, e => { e.preventDefault(); sdz.classList.remove("over"); }));
+  sdz.addEventListener("drop", e => addSpFiles(e.dataTransfer.files));
+  function resetSpForm() {
+    spPicked = []; spEditing = null; renderSpPicked(); setSpMode("file"); $("#spForm").reset();
+    $("#spId").value = ""; $("#spFDate").value = todayStr(); fillAfter(); $("#spFormTitle").textContent = "Add a speaking video";
+    $("#spSubmit").textContent = "Publish video"; $("#spCancel").hidden = true; $("#spProg").classList.add("hidden");
+  }
+  $("#spCancel").onclick = resetSpForm;
+  $("#spFDate").value = todayStr();
+  function editSpeaking(p) {
+    $(`.tab[data-tab="t-speaking"]`).click(); resetSpForm(); spEditing = p;
+    $("#spId").value = p.id; $("#spFTitle").value = p.title; $("#spFTopic").value = p.topic || ""; $("#spFDate").value = p.publish_date; $("#spFUnlock").value = toLocalInput(p.unlock_at); fillAfterIn($("#spFAfter"), "speaking", p.id, p.only_after || ""); $("#spNotes2").value = p.notes || p.body || "";
+    if (p.video_url) { setSpMode("link"); $("#spLink").value = p.video_url; }
+    $("#spFormTitle").textContent = "Edit speaking video"; $("#spSubmit").textContent = "Save changes"; $("#spCancel").hidden = false;
+    window.scrollTo(0, 0);
+  }
+  // upload with progress (supabase-js has no progress callback, so use XHR on the storage endpoint)
+  async function uploadVideo(file, onProg) {
+    const { data: { session } } = await sb.auth.getSession();
+    const ext = (file.name.match(/\.([a-z0-9]+)$/i) || [, "mp4"])[1].toLowerCase();
+    const path = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) + "." + ext;
+    await new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open("POST", SUPABASE_URL + "/storage/v1/object/speaking/" + path);
+      x.setRequestHeader("Authorization", "Bearer " + session.access_token); x.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+      x.setRequestHeader("x-upsert", "false"); x.setRequestHeader("Content-Type", file.type || "video/mp4");
+      x.upload.onprogress = e => { if (e.lengthComputable) onProg(e.loaded / e.total); };
+      x.onload = () => { if (x.status >= 200 && x.status < 300) return resolve(); let msg = "Upload failed (" + x.status + ")"; try { msg = JSON.parse(x.responseText).message || msg; } catch (e) {} if (x.status === 413) msg = "File is too large for your Supabase plan (free: 50 MB)"; reject(new Error(msg)); };
+      x.onerror = () => reject(new Error("Network error while uploading")); x.send(file);
+    });
+    return path;
+  }
+  $("#spForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const id = $("#spId").value, date = $("#spFDate").value, topic = $("#spFTopic").value.trim() || null, notes = $("#spNotes2").value.trim() || null, titleIn = $("#spFTitle").value.trim();
+    const common = { kind: "speaking", level: "Medium", topic, notes, unlock_at: $("#spFUnlock").value ? new Date($("#spFUnlock").value).toISOString() : null, only_after: $("#spFAfter").value || null, body: null, questions: null, answers: null, html: null, audio_url: null };
+    let link = null;
+    if (spMode === "link") { link = $("#spLink").value.trim(); if (!/^https:\/\//i.test(link)) return toast("Video link must start with https://", true); }
+    else if (!spPicked.length && !id) return toast("Choose a video file first", true);
+    if (id && spPicked.length > 1) return toast("Choose just one file when editing", true);
+    if (!id && spMode === "link" && !titleIn) return toast("Add a title for the video", true);
+    if (id && !titleIn) return toast("Add a title for the video", true);
+    const btn = $("#spSubmit"); btn.disabled = true;
+    const prog = $("#spProg"), bar = $("#spBar"), ptxt = $("#spProgTxt"); prog.classList.remove("hidden");
+    const uploaded = [];
+    try {
+      if (spMode === "link") {
+        const row = { ...common, title: titleIn, publish_date: date, video_url: link, video_path: null };
+        const r = id ? await sb.from("passages").update(row).eq("id", id) : await sb.from("passages").insert(row);
+        if (r.error) throw r.error;
+        if (id && spEditing?.video_path) sb.storage.from("speaking").remove([spEditing.video_path]);
+      } else if (id && !spPicked.length) {
+        const r = await sb.from("passages").update({ ...common, title: titleIn, publish_date: date }).eq("id", id);
+        if (r.error) throw r.error;
+      } else {
+        for (let i = 0; i < spPicked.length; i++) {
+          const f = spPicked[i];
+          const label = (spPicked.length > 1 ? "Uploading " + (i + 1) + " of " + spPicked.length + " · " : "Uploading · ") + f.name;
+          ptxt.textContent = label; bar.style.width = "0%";
+          const path = await uploadVideo(f, fr => { bar.style.width = Math.round(fr * 100) + "%"; ptxt.textContent = label + " · " + Math.round(fr * 100) + "%"; });
+          uploaded.push(path);
+          const row = { ...common, title: (spPicked.length === 1 && titleIn) || nameToTitle(f.name), publish_date: addDays(date, i), video_path: path, video_url: null };
+          const r = id ? await sb.from("passages").update(row).eq("id", id) : await sb.from("passages").insert(row);
+          if (r.error) throw r.error;
+        }
+        if (id && spEditing?.video_path) sb.storage.from("speaking").remove([spEditing.video_path]);
+      }
+      toast(id ? "Video updated" : spPicked.length > 1 ? spPicked.length + " videos published" : "Video published");
+      resetSpForm(); loadAdminPassages();
+    } catch (err) {
+      if (uploaded.length) sb.storage.from("speaking").remove(uploaded);
+      toast(err.message || String(err), true);
+    }
+    btn.disabled = false; prog.classList.add("hidden");
+  });
 
   async function callAdminFn(payload) {
     const { data: { session } } = await sb.auth.getSession();
