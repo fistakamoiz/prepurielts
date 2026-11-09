@@ -504,7 +504,7 @@
         $("#pSubmit").textContent = "Save changes"; $("#pCancel").hidden = false;
         window.scrollTo(0, 0);
       };
-      del.onclick = async () => { if (!confirm("Delete this passage?")) return; const { error } = await sb.from("passages").delete().eq("id", p.id); if (error) return toast(error.message, true); if (p.video_path) sb.storage.from("speaking").remove([p.video_path]); toast("Deleted"); loadAdminPassages(); };
+      del.onclick = async () => { if (!confirm("Delete this passage?")) return; const { error } = await sb.from("passages").delete().eq("id", p.id); if (error) return toast(error.message, true); if (p.video_path) sb.storage.from("speaking").remove([p.video_path]); if (p.notes_path) dropNotesIfUnused(p.notes_path); toast("Deleted"); loadAdminPassages(); };
       a.append(ed, del); r.append(g, a); box.appendChild(r);
     });
   }
@@ -625,6 +625,7 @@
     $("#spTitle").textContent = p.title;
     const m = $("#spMeta"); m.replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || "Speaking"));
     $("#spNotes").textContent = p.notes || p.body || ""; $("#spNotes").classList.toggle("hidden", !(p.notes || p.body));
+    setupNotes(p);
     const pl = $("#spPlayer"), yid = p.video_url ? ytId(p.video_url) : null;
     spEng = yid ? ytEng : vidEl; pl.classList.toggle("yt", !!yid);
     pl.classList.add("loading"); setSpUI();
@@ -702,7 +703,7 @@
     pl.addEventListener("mousemove", spWake); pl.addEventListener("touchstart", spWake, { passive: true });
     document.addEventListener("keydown", e => {
       if ($("#view-speaking").classList.contains("hidden") || !spCur) return;
-      const t = e.target.tagName; if (t === "INPUT" && e.target.type !== "range" || t === "TEXTAREA" || t === "SELECT") return;
+      const t = e.target.tagName; if (t === "INPUT" && e.target.type !== "range" || t === "TEXTAREA" || t === "SELECT" || e.target.isContentEditable) return;
       if (e.key === " " || e.key === "k") { e.preventDefault(); spToggle(); }
       else if (e.key === "ArrowLeft" || e.key === "j") { e.preventDefault(); spSkip(-10); }
       else if (e.key === "ArrowRight" || e.key === "l") { e.preventDefault(); spSkip(10); }
@@ -712,8 +713,90 @@
     setSpUI();
   })();
 
+  /* ----- speaking: lesson notes file (download) + student notes editor (PDF) ----- */
+  const NOTE_COLORS = ["#111111", "#e5484d", "#f08a24", "#30a46c", "#0091ff", "#8e4ec6", "#e93d82"];
+  const NOTE_MARKS = ["#fff176", "#b9f6ca", "#b3e5fc", "#f8bbd0", "transparent"];
+  let noteRange = null, noteKey = null, pdfLoading = null;
+  const noteEd = () => $("#spNoteEd");
+  const noteSave = () => { if (noteKey) lsSet(noteKey, noteEd().innerHTML); };
+  function noteRun(cmd, val) {
+    const ed = noteEd(); ed.focus();
+    if (noteRange) { const s = getSelection(); s.removeAllRanges(); s.addRange(noteRange); }
+    try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
+    document.execCommand(cmd, false, val == null ? null : val);
+    noteSave();
+  }
+  function setupNotes(p) {
+    noteKey = "spNote:" + (profile ? profile.id : "") + ":" + p.id; noteRange = null;
+    noteEd().innerHTML = lsGet(noteKey) || "";
+    $("#spDlNotes").classList.toggle("hidden", !p.notes_path);
+  }
+  const loadPdfLib = () => window.html2pdf ? Promise.resolve() : (pdfLoading = pdfLoading || new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    s.onload = res; s.onerror = () => { pdfLoading = null; rej(new Error("The PDF tool could not be loaded. Check your internet and try again.")); }; document.head.appendChild(s);
+  }));
+  (() => {
+    const ed = noteEd();
+    const swatch = (box, list, cmd) => list.forEach(c => {
+      const b = el("button", "nt-c"); b.type = "button"; b.title = c === "transparent" ? "No highlight" : c;
+      b.style.background = c === "transparent" ? "#fff" : c; if (c === "transparent") b.classList.add("none");
+      b.addEventListener("mousedown", e => e.preventDefault());
+      b.onclick = () => noteRun(cmd, c); box.appendChild(b);
+    });
+    swatch($("#spNoteColors"), NOTE_COLORS, "foreColor");
+    swatch($("#spNoteMarks"), NOTE_MARKS, "hiliteColor");
+    $$("#spNotesBox .nt-b").forEach(b => { b.addEventListener("mousedown", e => e.preventDefault()); b.onclick = () => noteRun(b.dataset.cmd); });
+    $("#spNoteFont").onchange = e => noteRun("fontName", e.target.value);
+    $("#spNoteSize").onchange = e => noteRun("fontSize", e.target.value);
+    $("#spNoteColorPick").addEventListener("input", e => noteRun("foreColor", e.target.value));
+    document.addEventListener("selectionchange", () => { const s = getSelection(); if (s.rangeCount && ed.contains(s.anchorNode)) noteRange = s.getRangeAt(0).cloneRange(); });
+    ed.addEventListener("input", noteSave);
+    ed.addEventListener("paste", e => { e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData("text/plain"); document.execCommand("insertText", false, t); });
+    ed.addEventListener("drop", e => e.preventDefault());
+
+    $("#spDlNotes").onclick = async () => {
+      const p = spCur; if (!p || !p.notes_path) return;
+      const r = await sb.storage.from("speaking").createSignedUrl(p.notes_path, 600, { download: p.notes_name || true });
+      if (r.error) return toast("Could not download the notes: " + r.error.message, true);
+      const l = document.createElement("a"); l.href = r.data.signedUrl; l.download = p.notes_name || ""; document.body.appendChild(l); l.click(); l.remove();
+    };
+
+    $("#spNotePdf").onclick = async () => {
+      if (!ed.textContent.trim()) return toast("Write some notes first", true);
+      const btn = $("#spNotePdf"); btn.disabled = true;
+      try {
+        await loadPdfLib();
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "width:700px;background:#fff;color:#111;font-family:'Space Grotesk',Arial,sans-serif;font-size:14px;line-height:1.6";
+        const h = document.createElement("h2"); h.textContent = spCur ? spCur.title : "Notes"; h.style.cssText = "margin:0 0 4px;font-size:22px;color:#111";
+        const d = document.createElement("div"); d.textContent = "Speaking notes · " + fmtDate(todayStr()); d.style.cssText = "margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #ddd;color:#777;font-size:12px";
+        const body = document.createElement("div"); body.innerHTML = ed.innerHTML;
+        wrap.append(h, d, body);
+        const base = ((spCur ? spCur.title : "notes").replace(/[^\p{L}\p{N}\- ]+/gu, "").trim().replace(/\s+/g, "-")) || "notes";
+        await html2pdf().set({ margin: [14, 14, 14, 14], filename: base + "-notes.pdf", image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, backgroundColor: "#ffffff" }, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" } }).from(wrap).save();
+      } catch (err) { toast(err.message || "Could not create the PDF", true); }
+      btn.disabled = false;
+    };
+  })();
+
   /* ----- admin: add / edit speaking ----- */
   let spMode = "file", spPicked = [], spEditing = null;
+  let spNotesFile = null, spNotesKeep = null;   // newly chosen notes file / notes file already saved on the lesson
+  function renderSpNotesFile() {
+    const box = $("#spNotesFiles"); box.replaceChildren();
+    const name = spNotesFile ? spNotesFile.name : spNotesKeep ? (spNotesKeep.name || "notes file") : null;
+    if (!name) return;
+    const r = el("div", "fitem"); const x = el("button", "x", "✕"); x.type = "button";
+    x.onclick = () => { spNotesFile = null; spNotesKeep = null; renderSpNotesFile(); };
+    r.append(el("span", "grow", name), el("span", "muted mono", spNotesFile ? fmtSize(spNotesFile.size) : "saved"), x); box.appendChild(r);
+  }
+  $("#spNotesBtn").onclick = () => $("#spNotesPick").click();
+  $("#spNotesPick").onchange = e => { if (e.target.files[0]) { spNotesFile = e.target.files[0]; renderSpNotesFile(); } e.target.value = ""; };
+  async function dropNotesIfUnused(path) {
+    const { count, error } = await sb.from("passages").select("id", { count: "exact", head: true }).eq("notes_path", path);
+    if (!error && count === 0) sb.storage.from("speaking").remove([path]);
+  }
   const nameToTitle = n => n.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "Speaking video";
   const fmtSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
   function setSpMode(m) {
@@ -740,7 +823,7 @@
   ["dragleave", "drop"].forEach(ev => sdz.addEventListener(ev, e => { e.preventDefault(); sdz.classList.remove("over"); }));
   sdz.addEventListener("drop", e => addSpFiles(e.dataTransfer.files));
   function resetSpForm() {
-    spPicked = []; spEditing = null; renderSpPicked(); setSpMode("file"); $("#spForm").reset();
+    spPicked = []; spEditing = null; spNotesFile = null; spNotesKeep = null; renderSpNotesFile(); renderSpPicked(); setSpMode("file"); $("#spForm").reset();
     $("#spId").value = ""; $("#spFDate").value = todayStr(); fillAfter(); $("#spFormTitle").textContent = "Add a speaking video";
     $("#spSubmit").textContent = "Publish video"; $("#spCancel").hidden = true; $("#spProg").classList.add("hidden");
   }
@@ -749,15 +832,16 @@
   function editSpeaking(p) {
     $(`.tab[data-tab="t-speaking"]`).click(); resetSpForm(); spEditing = p;
     $("#spId").value = p.id; $("#spFTitle").value = p.title; $("#spFTopic").value = p.topic || ""; $("#spFDate").value = p.publish_date; $("#spFUnlock").value = toLocalInput(p.unlock_at); fillAfterIn($("#spFAfter"), "speaking", p.id, p.only_after || ""); $("#spNotes2").value = p.notes || p.body || "";
+    spNotesKeep = p.notes_path ? { path: p.notes_path, name: p.notes_name } : null; renderSpNotesFile();
     if (p.video_url) { setSpMode("link"); $("#spLink").value = p.video_url; }
     $("#spFormTitle").textContent = "Edit speaking video"; $("#spSubmit").textContent = "Save changes"; $("#spCancel").hidden = false;
     window.scrollTo(0, 0);
   }
   // upload with progress (supabase-js has no progress callback, so use XHR on the storage endpoint)
-  async function uploadVideo(file, onProg) {
+  async function uploadVideo(file, onProg, prefix = "") {
     const { data: { session } } = await sb.auth.getSession();
     const ext = (file.name.match(/\.([a-z0-9]+)$/i) || [, "mp4"])[1].toLowerCase();
-    const path = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) + "." + ext;
+    const path = prefix + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) + "." + ext;
     await new Promise((resolve, reject) => {
       const x = new XMLHttpRequest();
       x.open("POST", SUPABASE_URL + "/storage/v1/object/speaking/" + path);
@@ -783,13 +867,19 @@
     const prog = $("#spProg"), bar = $("#spBar"), ptxt = $("#spProgTxt"); prog.classList.remove("hidden");
     const uploaded = [];
     try {
+      let notesPatch = {};
+      if (spNotesFile) {
+        const nl = "Uploading notes · " + spNotesFile.name; ptxt.textContent = nl; bar.style.width = "0%";
+        const np = await uploadVideo(spNotesFile, fr => { bar.style.width = Math.round(fr * 100) + "%"; ptxt.textContent = nl + " · " + Math.round(fr * 100) + "%"; }, "notes-");
+        uploaded.push(np); notesPatch = { notes_path: np, notes_name: spNotesFile.name };
+      } else if (id && spEditing?.notes_path && !spNotesKeep) notesPatch = { notes_path: null, notes_name: null };
       if (spMode === "link") {
-        const row = { ...common, title: titleIn, publish_date: date, video_url: link, video_path: null };
+        const row = { ...common, ...notesPatch, title: titleIn, publish_date: date, video_url: link, video_path: null };
         const r = id ? await sb.from("passages").update(row).eq("id", id) : await sb.from("passages").insert(row);
         if (r.error) throw r.error;
         if (id && spEditing?.video_path) sb.storage.from("speaking").remove([spEditing.video_path]);
       } else if (id && !spPicked.length) {
-        const r = await sb.from("passages").update({ ...common, title: titleIn, publish_date: date }).eq("id", id);
+        const r = await sb.from("passages").update({ ...common, ...notesPatch, title: titleIn, publish_date: date }).eq("id", id);
         if (r.error) throw r.error;
       } else {
         for (let i = 0; i < spPicked.length; i++) {
@@ -798,12 +888,13 @@
           ptxt.textContent = label; bar.style.width = "0%";
           const path = await uploadVideo(f, fr => { bar.style.width = Math.round(fr * 100) + "%"; ptxt.textContent = label + " · " + Math.round(fr * 100) + "%"; });
           uploaded.push(path);
-          const row = { ...common, title: (spPicked.length === 1 && titleIn) || nameToTitle(f.name), publish_date: addDays(date, i), video_path: path, video_url: null };
+          const row = { ...common, ...notesPatch, title: (spPicked.length === 1 && titleIn) || nameToTitle(f.name), publish_date: addDays(date, i), video_path: path, video_url: null };
           const r = id ? await sb.from("passages").update(row).eq("id", id) : await sb.from("passages").insert(row);
           if (r.error) throw r.error;
         }
         if (id && spEditing?.video_path) sb.storage.from("speaking").remove([spEditing.video_path]);
       }
+      if (id && spEditing?.notes_path && "notes_path" in notesPatch) dropNotesIfUnused(spEditing.notes_path);
       toast(id ? "Video updated" : spPicked.length > 1 ? spPicked.length + " videos published" : "Video published");
       resetSpForm(); loadAdminPassages();
     } catch (err) {

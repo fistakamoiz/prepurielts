@@ -146,7 +146,37 @@
           </div>
         </div>
       </div>
-      <div class="sp-info"><h3 id="spTitle"></h3><div class="meta" id="spMeta"></div><p class="muted" id="spNotes"></p></div>
+      <div class="sp-info">
+        <div class="sp-headrow">
+          <div class="sp-headtxt"><h3 id="spTitle"></h3><div class="meta" id="spMeta"></div></div>
+          <button type="button" class="glass-btn hidden" id="spDlNotes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>Download notes from the lesson</button>
+        </div>
+        <p class="muted" id="spNotes"></p>
+        <div class="sp-notes" id="spNotesBox">
+          <div class="sp-notes-head"><h4>My notes</h4><button type="button" class="glass-btn sm" id="spNotePdf">Download as PDF</button></div>
+          <div class="nt-bar">
+            <select id="spNoteFont" class="nt-sel" title="Font">
+              <option value="Space Grotesk">Space Grotesk</option><option value="Arial">Arial</option><option value="Verdana">Verdana</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option><option value="Instrument Serif">Instrument Serif</option><option value="JetBrains Mono">JetBrains Mono</option>
+            </select>
+            <select id="spNoteSize" class="nt-sel" title="Size">
+              <option value="2">Small</option><option value="3" selected>Normal</option><option value="5">Large</option><option value="6">Huge</option>
+            </select>
+            <button type="button" class="nt-b" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button type="button" class="nt-b" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button type="button" class="nt-b" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button type="button" class="nt-b" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+            <button type="button" class="nt-b" data-cmd="insertUnorderedList" title="Bullet list">•≡</button>
+            <span class="nt-sep"></span>
+            <span class="nt-sw" id="spNoteColors" title="Text colour"></span>
+            <label class="nt-custom" title="Pick any text colour">A<input type="color" id="spNoteColorPick" value="#e5484d"></label>
+            <span class="nt-sep"></span>
+            <span class="nt-sw" id="spNoteMarks" title="Highlight"></span>
+            <button type="button" class="nt-b" data-cmd="removeFormat" title="Clear formatting">Tx</button>
+          </div>
+          <div id="spNoteEd" class="nt-ed" contenteditable="true" spellcheck="true" data-ph="Type your notes here…"></div>
+          <p class="muted hint">Your notes are saved automatically on this device.</p>
+        </div>
+      </div>
     </div>
     <h3 class="sub" id="spSub">All videos</h3>
     <div class="list" id="spList"></div>
@@ -309,6 +339,11 @@
         <label>Notes <small class="muted">(optional: tips, vocabulary, questions shown under the video)</small>
           <textarea class="input" id="spNotes2" rows="5" placeholder="Key phrases, sample questions…"></textarea>
         </label>
+        <div class="stack">
+          <div><button type="button" class="btn" id="spNotesBtn">Add notes</button> <small class="muted">(optional: choose a notes file from your computer, students can download it)</small></div>
+          <input type="file" id="spNotesPick" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.xls,.xlsx,image/*" hidden>
+          <div class="files" id="spNotesFiles"></div>
+        </div>
         <div class="sp-prog hidden" id="spProg"><div class="bar"><i id="spBar"></i></div><span class="mono muted" id="spProgTxt"></span></div>
         <div class="form-actions">
           <button class="btn primary" type="submit" id="spSubmit">Publish video</button>
