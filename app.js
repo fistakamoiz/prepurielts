@@ -1,6 +1,6 @@
 (() => {
   /* ---------- intro animation ---------- */
-  const WORD = "bandup", GAP = 2, DOT = 0.8, HOLD = 150, DURATION = 1000, SHOW = 2900;
+  const WORD = "prepielts", GAP = 2, DOT = 0.8, HOLD = 150, DURATION = 1000, SHOW = 2900;
   try { if (localStorage.getItem("introSeen")) return; localStorage.setItem("introSeen", "1"); } catch (e) {}
   const box = document.createElement("div"); box.id = "intro";
   const cv = document.createElement("canvas"); box.appendChild(cv); document.body.appendChild(box);
@@ -677,6 +677,12 @@
       v.addEventListener("timeupdate", () => { if (v === spEng && v.duration > 0 && v.currentTime / v.duration >= 0.9) markWatched(); });
     };
     attach(vidEl); attach(ytEng);
+    $("#spLeave").onclick = () => {   // back to the list of Speaking lessons
+      const fs = document.fullscreenElement || document.webkitFullscreenElement;
+      if (fs) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      spPause(); spOpenTok++; spCur = null; $("#spStage").classList.add("hidden"); $("#spPlayer").classList.remove("loading");
+      renderSpeaking(); window.scrollTo({ top: 0, behavior: "smooth" });
+    };
     $("#spPlay").onclick = spToggle; $("#spBig").onclick = spToggle;
     $("#spBack").onclick = () => spSkip(-10); $("#spFwd").onclick = () => spSkip(10);
     $("#spSpeed").onclick = () => { const v = spv(); const i = SPEEDS.indexOf(v.playbackRate); const n = SPEEDS[(i + 1) % SPEEDS.length]; v.playbackRate = n; lsSet("spSpeed", n); $("#spSpeed").textContent = n + "×"; spFlash(n + "×"); };

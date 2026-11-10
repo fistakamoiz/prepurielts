@@ -368,3 +368,7 @@ body.reading-html .reader.html-mode{height:calc(100vh - 58px)}
 .nt-ed:empty::before{content:attr(data-ph);color:#999;pointer-events:none}
 .nt-ed ul{margin:.3em 0 .3em 1.4em}
 .sp-notes .hint{margin-top:10px}
+
+/* back button in the top-left corner of every Speaking lesson */
+.sp-leave{position:absolute;top:14px;left:14px;z-index:3;padding:8px 16px 8px 12px}
+@media(max-width:600px){.sp-leave{top:8px;left:8px}}
