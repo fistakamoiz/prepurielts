@@ -325,6 +325,7 @@ body.reading-html .reader.html-mode{height:calc(100vh - 58px)}
 .sp-player.yt .sp-yt{display:block}
 .sp-player.yt #spVideo{display:none}
 .sp-yt iframe{position:absolute;left:50%;top:50%;width:100%;height:100%;border:0;pointer-events:none;transform:translate(-50%,-50%) scale(1.16)}
+#view-speaking.kind-writing .sp-yt iframe{transform:translate(-50%,-50%)}
 .sp-shield{position:absolute;inset:0;z-index:1;background:transparent}
 .sp-big,.sp-flash{z-index:2}
 .sp-ctrl{z-index:3}

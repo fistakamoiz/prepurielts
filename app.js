@@ -529,6 +529,7 @@
   function setSpKind(k) {
     if (spKind === k) return;
     spKind = k; spPause(); spOpenTok++; spCur = null; spItems = [];
+    $("#view-speaking").classList.toggle("kind-writing", k === "writing"); // Writing videos are shown without the zoom
     $("#spStage").classList.add("hidden"); $("#spPlayer").classList.remove("loading"); $("#spSearch").value = "";
     const n = spName();
     $("#spHead").replaceChildren(document.createTextNode(n.slice(0, -3)), el("span", "serif", "ing"));
