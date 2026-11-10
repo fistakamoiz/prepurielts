@@ -54,6 +54,8 @@
   let readerIsHtml = false;
   let dashKind = "reading";
   let doneIds = new Set();   // ids of passages this student has finished
+  let spKind = "speaking";      // the video page shows Speaking or Writing lessons (same player, same notes)
+  let spAdminKind = "speaking"; // the admin video form adds Speaking or Writing lessons
 
   const todayStr = () => new Date().toISOString().slice(0, 10);
   const fmtDate = d => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -63,7 +65,7 @@
   const newestFirst = (a, b) => b.publish_date.localeCompare(a.publish_date) || (b.title || "").localeCompare(a.title || "", undefined, { numeric: true }) || (b.created_at || "").localeCompare(a.created_at || "");
 
   /* ---------- locks: unlock date/time + "only after solving ..." ---------- */
-  const LOCK_VERB = { reading: "solving", listening: "completing", speaking: "watching" };
+  const LOCK_VERB = { reading: "solving", listening: "completing", speaking: "watching", writing: "watching" };
   const fmtDT = iso => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const toLocalInput = iso => { if (!iso) return ""; const d = new Date(iso), z = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes()); };
   function lockInfo(p, pool) {
@@ -97,6 +99,7 @@
   /* ---------- views ---------- */
   function show(view) {
     if (view === "tasks") view = "dashboard";
+    if (view === "writing" || view === "speaking") { setSpKind(view); view = "speaking"; }
     if ((view === "dashboard" || view === "reader" || view === "board" || view === "speaking") && !profile) view = "landing";
     if (view !== "speaking") spPause();
     if (view !== "reader") { openToken++; pauseAttempt(); $$("#textHost audio").forEach(a => a.pause()); }
@@ -325,7 +328,7 @@
   const longTime = sec => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60; return h ? h + "h " + m + "m" : m ? m + "m " + x + "s" : x + "s"; };
   async function renderBoard() {
     const list = $("#boardList"), empty = $("#boardEmpty");
-    let q = sb.from("attempts").select("user_id,passage_id,full_name,score,total,elapsed_seconds,finished_at").eq("finished", true).neq("kind", "speaking");
+    let q = sb.from("attempts").select("user_id,passage_id,full_name,score,total,elapsed_seconds,finished_at").eq("finished", true).not("kind", "in", "(speaking,writing)");
     if (boardRange === "week") q = q.gte("finished_at", weekStartISO());
     const { data, error } = await q;
     if (error) return toast(error.message, true);
@@ -372,6 +375,10 @@
       if ($("#pId").value && $("#pKind").value !== t.dataset.kind) resetPassageForm(); // switching section cancels an edit
       $("#pKind").value = t.dataset.kind; applyKind();
     }
+    if (t.dataset.spk) {
+      if ($("#spId").value && spAdminKind !== t.dataset.spk) resetSpForm(); // switching section cancels an edit
+      spAdminKind = t.dataset.spk; applySpAdmin(); fillAfter();
+    }
     $$(".tab").forEach(x => x.classList.toggle("active", x === t));
     $$(".tabpane").forEach(p => p.classList.toggle("hidden", p.id !== t.dataset.tab));
   });
@@ -386,7 +393,7 @@
   }
   function fillAfter(sel) {
     fillAfterIn($("#pAfter"), $("#pKind").value, $("#pId").value, sel !== undefined ? sel : $("#pAfter").value);
-    fillAfterIn($("#spFAfter"), "speaking", $("#spId").value, $("#spFAfter").value);
+    fillAfterIn($("#spFAfter"), spAdminKind, $("#spId").value, $("#spFAfter").value);
   }
   let mode = "file";
   let picked = []; // [{ name, html, title, size }]
@@ -491,10 +498,10 @@
     if (!data.length) box.appendChild(el("p", "muted", "Nothing here yet."));
     data.forEach(p => {
       const r = el("div", "trow"); const g = el("div", "grow");
-      g.append(el("b", "", p.title), el("span", "muted mono", (p.kind || "reading").toUpperCase() + " · " + fmtDate(p.publish_date) + (p.kind === "speaking" ? "" : " · " + p.level) + (p.publish_date > todayStr() ? " · SCHEDULED" : "")));
+      g.append(el("b", "", p.title), el("span", "muted mono", (p.kind || "reading").toUpperCase() + " · " + fmtDate(p.publish_date) + (p.kind === "speaking" || p.kind === "writing" ? "" : " · " + p.level) + (p.publish_date > todayStr() ? " · SCHEDULED" : "")));
       const a = el("div", "acts"); const ed = el("button", "btn sm", "Edit"), del = el("button", "btn sm danger", "Delete");
       ed.onclick = () => {
-        if (p.kind === "speaking") { editSpeaking(p); return; }
+        if (p.kind === "speaking" || p.kind === "writing") { editSpeaking(p); return; }
         $(`.tab[data-kind="${p.kind === "listening" ? "listening" : "reading"}"]`).click();
         $("#pId").value = p.id; $("#pTitle").value = p.title; $("#pTopic").value = p.topic || ""; $("#pLevel").value = p.level; $("#pDate").value = p.publish_date;
         $("#pHtml").value = p.html || ""; $("#pBody").value = p.body || ""; $("#pQuestions").value = p.questions || ""; $("#pAnswers").value = p.answers || "";
@@ -518,6 +525,17 @@
   };
   const fmtT = s => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2, "0"); return h ? h + ":" + String(m).padStart(2, "0") + ":" + x : m + ":" + x; };
   const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+  const spName = () => spKind === "writing" ? "Writing" : "Speaking";
+  function setSpKind(k) {
+    if (spKind === k) return;
+    spKind = k; spPause(); spOpenTok++; spCur = null; spItems = [];
+    $("#spStage").classList.add("hidden"); $("#spPlayer").classList.remove("loading"); $("#spSearch").value = "";
+    const n = spName();
+    $("#spHead").replaceChildren(document.createTextNode(n.slice(0, -3)), el("span", "serif", "ing"));
+    $("#spLeave").setAttribute("aria-label", "Back to " + n);
+    $("#spEmpty").textContent = "No " + n.toLowerCase() + " videos yet. Check back soon.";
+    $("#spList").replaceChildren();
+  }
   let spItems = [], spCur = null, spOpenTok = 0, spSeeking = false, spHideId = null;
   const vidEl = $("#spVideo");
   let spEng = vidEl;                       // current engine: the <video> tag, or the YouTube facade below
@@ -585,15 +603,17 @@
     const p = spCur; if (!p || !profile || doneIds.has(p.id)) return;
     doneIds.add(p.id);
     const name = (profile.full_name || "").trim() || (profile.email || "").split("@")[0];
-    const { error } = await sb.from("attempts").insert({ passage_id: p.id, user_id: profile.id, full_name: name, kind: "speaking", finished: true, finished_at: new Date().toISOString() });
+    const { error } = await sb.from("attempts").insert({ passage_id: p.id, user_id: profile.id, full_name: name, kind: spKind, finished: true, finished_at: new Date().toISOString() });
     if (error) { doneIds.delete(p.id); console.error(error); } else { toast("Lesson completed"); renderSpeaking(); }
   }
   async function loadSpeaking() {
+    const kind = spKind;
     const [res, done] = await Promise.all([
-      sb.from("passages").select("*").eq("kind", "speaking").lte("publish_date", todayStr()).order("publish_date", { ascending: false }),
+      sb.from("passages").select("*").eq("kind", kind).lte("publish_date", todayStr()).order("publish_date", { ascending: false }),
       sb.from("attempts").select("passage_id").eq("user_id", profile.id).eq("finished", true)
     ]);
     if (res.error) { toast("Could not load videos: " + res.error.message, true); return; }
+    if (kind !== spKind) return; // the student switched page while this was loading
     doneIds = new Set((done.data || []).map(x => x.passage_id));
     spItems = res.data.sort(newestFirst); renderSpeaking();
   }
@@ -607,7 +627,7 @@
       const it = el("div", "item sp-item" + (spCur && spCur.id === p.id ? " playing" : ""));
       const ic = el("div", "sp-ic"); ic.innerHTML = ICON.play;
       const l = el("div", "grow"); l.appendChild(el("h4", "", p.title));
-      const m = el("div", "meta"); m.append(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || "Speaking")); l.appendChild(m);
+      const m = el("div", "meta"); m.append(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || spName())); l.appendChild(m);
       it.append(ic, l, el("span", "mono muted", spCur && spCur.id === p.id ? "NOW PLAYING" : "WATCH →"));
       const lk = lockInfo(p, spItems);
       if (lk) { it.classList.add("locked"); it.appendChild(lockGlass(lk)); it.onclick = () => toast(lk, true); }
@@ -623,7 +643,7 @@
     spPause();
     spCur = p; $("#spStage").classList.remove("hidden");
     $("#spTitle").textContent = p.title;
-    const m = $("#spMeta"); m.replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || "Speaking"));
+    const m = $("#spMeta"); m.replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", p.topic || spName()));
     $("#spNotes").textContent = p.notes || p.body || ""; $("#spNotes").classList.toggle("hidden", !(p.notes || p.body));
     setupNotes(p);
     const pl = $("#spPlayer"), yid = p.video_url ? ytId(p.video_url) : null;
@@ -772,16 +792,24 @@
       const btn = $("#spNotePdf"); btn.disabled = true;
       try {
         await loadPdfLib();
+        // html2pdf's canvas capture comes out blank when the page is scrolled down (the notes box is far down the page)
+        // and the site uses smooth scrolling, so jump to the top instantly first and put the scroll back afterwards.
+        const y0 = window.scrollY, root = document.documentElement, oldSB = root.style.scrollBehavior;
+        root.style.scrollBehavior = "auto"; window.scrollTo(0, 0);
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         const wrap = document.createElement("div");
         wrap.style.cssText = "width:700px;background:#fff;color:#111;font-family:'Space Grotesk',Arial,sans-serif;font-size:14px;line-height:1.6";
         const h = document.createElement("h2"); h.textContent = spCur ? spCur.title : "Notes"; h.style.cssText = "margin:0 0 4px;font-size:22px;color:#111";
-        const d = document.createElement("div"); d.textContent = "Speaking notes · " + fmtDate(todayStr()); d.style.cssText = "margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #ddd;color:#777;font-size:12px";
+        const d = document.createElement("div"); d.textContent = spName() + " notes · " + fmtDate(todayStr()); d.style.cssText = "margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #ddd;color:#777;font-size:12px";
         const body = document.createElement("div"); body.innerHTML = ed.innerHTML;
+        body.querySelectorAll("ul,ol").forEach(u => { u.style.margin = "0 0 0 4px"; u.style.paddingLeft = "22px"; });
+        body.querySelectorAll("li").forEach(li => { li.style.display = "list-item"; });
         wrap.append(h, d, body);
         const base = ((spCur ? spCur.title : "notes").replace(/[^\p{L}\p{N}\- ]+/gu, "").trim().replace(/\s+/g, "-")) || "notes";
         await html2pdf().set({ margin: [14, 14, 14, 14], filename: base + "-notes.pdf", image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, backgroundColor: "#ffffff" }, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" } }).from(wrap).save();
-      } catch (err) { toast(err.message || "Could not create the PDF", true); }
+          html2canvas: { scale: 2, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0, useCORS: true, logging: false }, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" } }).from(wrap).save();
+        root.style.scrollBehavior = oldSB; window.scrollTo(0, y0);
+      } catch (err) { document.documentElement.style.scrollBehavior = ""; toast(err.message || "Could not create the PDF", true); }
       btn.disabled = false;
     };
   })();
@@ -830,17 +858,26 @@
   sdz.addEventListener("drop", e => addSpFiles(e.dataTransfer.files));
   function resetSpForm() {
     spPicked = []; spEditing = null; spNotesFile = null; spNotesKeep = null; renderSpNotesFile(); renderSpPicked(); setSpMode("file"); $("#spForm").reset();
-    $("#spId").value = ""; $("#spFDate").value = todayStr(); fillAfter(); $("#spFormTitle").textContent = "Add a speaking video";
-    $("#spSubmit").textContent = "Publish video"; $("#spCancel").hidden = true; $("#spProg").classList.add("hidden");
+    $("#spId").value = ""; $("#spFDate").value = todayStr(); fillAfter(); applySpAdmin();
+    $("#spCancel").hidden = true; $("#spProg").classList.add("hidden");
+  }
+  function applySpAdmin() {
+    const w = spAdminKind === "writing", editing = !!$("#spId").value;
+    $("#spFormTitle").textContent = (editing ? "Edit " : "Add a ") + (w ? "writing" : "speaking") + " video";
+    $("#spSubmit").textContent = editing ? "Save changes" : "Publish video";
+    $("#spFTitle").placeholder = w ? "e.g. Task 2: Opinion essay structure" : "e.g. Part 2: Describe a place you visited";
+    $("#spFTopic").placeholder = w ? "Task 1, Task 2, Tips…" : "Part 1, Part 2, Part 3, Tips…";
+    // Writing has no teacher notes: students write their own in the "My notes" box
+    $("#spNotesTxtLbl").classList.toggle("hidden", w); $("#spNotesFileRow").classList.toggle("hidden", w);
   }
   $("#spCancel").onclick = resetSpForm;
   $("#spFDate").value = todayStr();
   function editSpeaking(p) {
-    $(`.tab[data-tab="t-speaking"]`).click(); resetSpForm(); spEditing = p;
-    $("#spId").value = p.id; $("#spFTitle").value = p.title; $("#spFTopic").value = p.topic || ""; $("#spFDate").value = p.publish_date; $("#spFUnlock").value = toLocalInput(p.unlock_at); fillAfterIn($("#spFAfter"), "speaking", p.id, p.only_after || ""); $("#spNotes2").value = p.notes || p.body || "";
+    $(`.tab[data-spk="${p.kind === "writing" ? "writing" : "speaking"}"]`).click(); resetSpForm(); spEditing = p;
+    $("#spId").value = p.id; $("#spFTitle").value = p.title; $("#spFTopic").value = p.topic || ""; $("#spFDate").value = p.publish_date; $("#spFUnlock").value = toLocalInput(p.unlock_at); fillAfterIn($("#spFAfter"), spAdminKind, p.id, p.only_after || ""); $("#spNotes2").value = p.notes || p.body || "";
     spNotesKeep = p.notes_path ? { path: p.notes_path, name: p.notes_name } : null; renderSpNotesFile();
     if (p.video_url) { setSpMode("link"); $("#spLink").value = p.video_url; }
-    $("#spFormTitle").textContent = "Edit speaking video"; $("#spSubmit").textContent = "Save changes"; $("#spCancel").hidden = false;
+    applySpAdmin(); $("#spCancel").hidden = false;
     window.scrollTo(0, 0);
   }
   // upload with progress (supabase-js has no progress callback, so use XHR on the storage endpoint)
@@ -862,7 +899,7 @@
   $("#spForm").addEventListener("submit", async e => {
     e.preventDefault();
     const id = $("#spId").value, date = $("#spFDate").value, topic = $("#spFTopic").value.trim() || null, notes = $("#spNotes2").value.trim() || null, titleIn = $("#spFTitle").value.trim();
-    const common = { kind: "speaking", level: "Medium", topic, notes, unlock_at: $("#spFUnlock").value ? new Date($("#spFUnlock").value).toISOString() : null, only_after: $("#spFAfter").value || null, body: null, questions: null, answers: null, html: null, audio_url: null };
+    const common = { kind: spAdminKind, level: "Medium", topic, notes, unlock_at: $("#spFUnlock").value ? new Date($("#spFUnlock").value).toISOString() : null, only_after: $("#spFAfter").value || null, body: null, questions: null, answers: null, html: null, audio_url: null };
     let link = null;
     if (spMode === "link") { link = $("#spLink").value.trim(); if (!/^https:\/\//i.test(link)) return toast("Video link must start with https://", true); }
     else if (!spPicked.length && !id) return toast("Choose a video file first", true);

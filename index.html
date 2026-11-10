@@ -20,6 +20,7 @@
     <a href="#" data-go="landing">Home</a>
     <a href="#" data-go="tasks" class="auth-only hidden">Daily Tasks</a>
     <a href="#" data-go="speaking" class="auth-only hidden">Speaking</a>
+    <a href="#" data-go="writing" class="auth-only hidden">Writing</a>
     <a href="#" data-go="board" class="auth-only hidden">Board</a>
     <a href="#" data-go="admin" class="admin-only hidden">Admin</a>
   </nav>
@@ -119,7 +120,7 @@
 <section id="view-speaking" class="view hidden">
   <div class="wrap">
     <div class="page-head">
-      <div><div class="mono muted">WATCH &amp; PRACTISE</div><h2>Speak<span class="serif">ing</span></h2></div>
+      <div><div class="mono muted">WATCH &amp; PRACTISE</div><h2 id="spHead">Speak<span class="serif">ing</span></h2></div>
       <div class="seg-row"><input id="spSearch" class="input search" placeholder="Search…"></div>
     </div>
     <div class="sp-stage hidden" id="spStage">
@@ -236,7 +237,8 @@
     <div class="tabs">
       <button class="tab active" data-tab="t-add" data-kind="reading">Add Reading</button>
       <button class="tab" data-tab="t-add" data-kind="listening">Add Listening</button>
-      <button class="tab" data-tab="t-speaking">Add Speaking</button>
+      <button class="tab" data-tab="t-speaking" data-spk="speaking">Add Speaking</button>
+      <button class="tab" data-tab="t-speaking" data-spk="writing">Add Writing</button>
       <button class="tab" data-tab="t-passages">Passages</button>
       <button class="tab" data-tab="t-users">Students</button>
     </div>
@@ -337,10 +339,10 @@
         <label id="spLinkBlock" class="hidden">Video link <small class="muted">(a YouTube link, or a direct https:// link to an .mp4 file)</small>
           <input class="input" id="spLink" placeholder="https://www.youtube.com/watch?v=… or https://example.com/video.mp4">
         </label>
-        <label>Notes <small class="muted">(optional: tips, vocabulary, questions shown under the video)</small>
+        <label id="spNotesTxtLbl">Notes <small class="muted">(optional: tips, vocabulary, questions shown under the video)</small>
           <textarea class="input" id="spNotes2" rows="5" placeholder="Key phrases, sample questions…"></textarea>
         </label>
-        <div class="stack">
+        <div class="stack" id="spNotesFileRow">
           <div><button type="button" class="btn" id="spNotesBtn">Add notes</button> <small class="muted">(optional: choose a notes file from your computer, students can download it)</small></div>
           <input type="file" id="spNotesPick" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.xls,.xlsx,image/*" hidden>
           <div class="files" id="spNotesFiles"></div>
@@ -359,6 +361,7 @@
         <button type="button" data-akind="reading">Reading</button>
         <button type="button" data-akind="listening">Listening</button>
         <button type="button" data-akind="speaking">Speaking</button>
+        <button type="button" data-akind="writing">Writing</button>
       </div>
       <div class="table" id="adminPassages"></div>
     </div>
