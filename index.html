@@ -194,11 +194,10 @@
         <div class="meta" id="wtMeta"></div>
         <h3 id="wtTitle"></h3>
         <p class="wt-prompt" id="wtPrompt"></p>
-        <img id="wtImg" class="wt-img hidden" alt="Task image">
+        <div id="wtFile" class="wt-file hidden"></div>
         <div id="wtWrite" class="stack">
-          <div class="wt-limit" id="wtLimit"></div>
           <textarea class="input wt-ta" id="wtText" placeholder="Start writing here…" spellcheck="true"></textarea>
-          <div class="wt-foot"><span class="wt-count mono" id="wtCount">0 words</span><button type="button" class="btn primary" id="wtSubmit">Submit</button></div>
+          <div class="wt-foot"><div class="wt-countbox"><span class="wt-count mono" id="wtCount">0 words</span><span class="wt-limit" id="wtLimit"></span></div><button type="button" class="btn primary" id="wtSubmit">Submit</button></div>
         </div>
         <div class="wt-done hidden" id="wtDone">
           <div class="wt-check">✓</div>
@@ -333,27 +332,32 @@
     </div>
 
     <div class="tabpane hidden" id="t-speaking">
-      <div class="seg hidden" id="wrAdminMode" style="margin-bottom:18px">
-        <button type="button" class="active" data-wam="video">Upload video</button>
-        <button type="button" data-wam="task">Upload task</button>
+      <div class="seg" id="spMode" style="margin-bottom:18px">
+        <button type="button" class="active" data-spmode="file">Upload video</button>
+        <button type="button" class="hidden" data-spmode="task">Upload task</button>
+        <button type="button" data-spmode="link">Video link</button>
       </div>
       <form id="wtForm" class="form card hidden">
         <h3 class="form-title">Upload a writing task</h3>
         <div class="row">
-          <label>Task name<input class="input" id="wtFTitle" required placeholder="e.g. Line graph: internet users"></label>
+          <label>Task name <small class="muted">(optional: the file name is used if empty)</small><input class="input" id="wtFTitle" placeholder="e.g. Task 1: Line graph"></label>
           <label>Task type
             <select class="input" id="wtType"><option value="1">Task 1</option><option value="2">Task 2</option></select>
           </label>
         </div>
         <p class="muted hint" id="wtLimitHint"></p>
-        <label>Task question <small class="muted">(what the student has to write about)</small>
-          <textarea class="input" id="wtFPrompt" rows="6" placeholder="The graph below shows… Summarise the information by selecting and reporting the main features."></textarea>
-        </label>
         <div class="stack">
-          <div><button type="button" class="btn" id="wtImgBtn">Add image</button> <small class="muted">(optional: chart, graph or diagram for Task 1)</small></div>
-          <input type="file" id="wtImgPick" accept="image/*" hidden>
-          <div class="files" id="wtImgFiles"></div>
+          <label class="drop" id="wtDrop" for="wtFilePick">
+            <input type="file" id="wtFilePick" accept="image/*,.pdf,.html,.htm,.doc,.docx,.txt" hidden>
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <b>Choose the writing task file</b>
+            <span class="muted">PDF, image, HTML or Word. Students will see it in Writing → Tasks.</span>
+          </label>
+          <div class="files" id="wtFileList"></div>
         </div>
+        <label>Extra text <small class="muted">(optional: shown above the file)</small>
+          <textarea class="input" id="wtFPrompt" rows="3" placeholder="Optional instructions…"></textarea>
+        </label>
         <div class="row">
           <label>Publish date<input class="input" type="date" id="wtDate" required></label>
           <span></span>
@@ -376,10 +380,6 @@
           <label>Only after watching
             <select class="input after-sel" id="spFAfter"><option value="">No requirement</option></select>
           </label>
-        </div>
-        <div class="seg" id="spMode">
-          <button type="button" class="active" data-spmode="file">Upload video</button>
-          <button type="button" data-spmode="link">Video link</button>
         </div>
         <div id="spFileBlock" class="stack">
           <label class="drop" id="spDrop" for="spFile">

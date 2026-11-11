@@ -840,6 +840,7 @@
     spMode = m;
     $$("#spMode button").forEach(b => b.classList.toggle("active", b.dataset.spmode === m));
     $("#spFileBlock").classList.toggle("hidden", m !== "file"); $("#spLinkBlock").classList.toggle("hidden", m !== "link");
+    $("#spForm").classList.toggle("hidden", m === "task"); $("#wtForm").classList.toggle("hidden", m !== "task");
   }
   $$("#spMode button").forEach(b => b.onclick = () => setSpMode(b.dataset.spmode));
   function renderSpPicked() {
@@ -866,7 +867,10 @@
   }
   function applySpAdmin() {
     const w = spAdminKind === "writing", editing = !!$("#spId").value;
-    $("#wrAdminMode").classList.toggle("hidden", !w || editing); if (!w || editing) setWam("video");
+    // Writing: "Upload video" is replaced by "Upload task" (video links stay possible)
+    $("#spMode [data-spmode=file]").classList.toggle("hidden", w); $("#spMode [data-spmode=task]").classList.toggle("hidden", !w);
+    $("#spMode").classList.toggle("hidden", w && editing);
+    if (!editing) { if (w && spMode === "file") setSpMode("task"); else if (!w && spMode === "task") setSpMode("file"); }
     $("#spFormTitle").textContent = (editing ? "Edit " : "Add a ") + (w ? "writing" : "speaking") + " video";
     $("#spSubmit").textContent = editing ? "Save changes" : "Publish video";
     $("#spFTitle").placeholder = w ? "e.g. Task 2: Opinion essay structure" : "e.g. Part 2: Describe a place you visited";
@@ -880,7 +884,7 @@
     $(`.tab[data-spk="${p.kind === "writing" ? "writing" : "speaking"}"]`).click(); resetSpForm(); spEditing = p;
     $("#spId").value = p.id; $("#spFTitle").value = p.title; $("#spFTopic").value = p.topic || ""; $("#spFDate").value = p.publish_date; $("#spFUnlock").value = toLocalInput(p.unlock_at); fillAfterIn($("#spFAfter"), spAdminKind, p.id, p.only_after || ""); $("#spNotes2").value = p.notes || p.body || "";
     spNotesKeep = p.notes_path ? { path: p.notes_path, name: p.notes_name } : null; renderSpNotesFile();
-    if (p.video_url) { setSpMode("link"); $("#spLink").value = p.video_url; }
+    setSpMode(p.video_url ? "link" : "file"); if (p.video_url) $("#spLink").value = p.video_url;
     applySpAdmin(); $("#spCancel").hidden = false;
     window.scrollTo(0, 0);
   }
@@ -1030,12 +1034,8 @@
     $("#wtMeta").replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", "Task " + p.task_type));
     $("#wtLimit").textContent = "Word limit: " + WT_LIMIT[p.task_type] + " words";
     $("#wtText").value = done ? "" : (lsGet(wtDraftKey(p)) || ""); updWtCount(); showWtDone(done);
-    const img = $("#wtImg"); img.classList.add("hidden"); img.removeAttribute("src");
     window.scrollTo({ top: 0, behavior: "smooth" });
-    if (p.image_path) {
-      const r = await sb.storage.from("speaking").createSignedUrl(p.image_path, 6 * 3600);
-      if (wtCur === p && !r.error) { img.src = r.data.signedUrl; img.classList.remove("hidden"); }
-    }
+    await renderTaskFile($("#wtFile"), p);
   }
   function updWtCount() { const n = countWords($("#wtText").value); $("#wtCount").textContent = n + (n === 1 ? " word" : " words"); }
   $("#wtText").addEventListener("input", () => { updWtCount(); if (wtCur) lsSet(wtDraftKey(wtCur), $("#wtText").value); });
@@ -1051,33 +1051,45 @@
   };
 
   /* ---------- writing tasks: admin ---------- */
-  let wamMode = "video", wtImgFile = null, wsView = "subs", wsType = "all";
-  function setWam(m) {
-    wamMode = m;
-    $$("#wrAdminMode button").forEach(b => b.classList.toggle("active", b.dataset.wam === m));
-    $("#spForm").classList.toggle("hidden", m !== "video"); $("#wtForm").classList.toggle("hidden", m !== "task");
-  }
-  $$("#wrAdminMode button").forEach(b => b.onclick = () => setWam(b.dataset.wam));
-  const wtHint = () => { $("#wtLimitHint").textContent = "Students will see a limit of " + WT_LIMIT[$("#wtType").value] + " words for this task."; };
+  let wtFile = null, wsView = "subs", wsType = "all";
+  const wtHint = () => { $("#wtLimitHint").textContent = "Students will see a limit of " + WT_LIMIT[$("#wtType").value] + " words under the writing box."; };
   $("#wtType").onchange = wtHint; wtHint(); $("#wtDate").value = todayStr();
-  function renderWtImg() {
-    const box = $("#wtImgFiles"); box.replaceChildren(); if (!wtImgFile) return;
-    const r = el("div", "fitem"); const x = el("button", "x", "✕"); x.type = "button"; x.onclick = () => { wtImgFile = null; renderWtImg(); };
-    r.append(el("span", "grow", wtImgFile.name), el("span", "muted mono", fmtSize(wtImgFile.size)), x); box.appendChild(r);
+  function renderWtFile() {
+    const box = $("#wtFileList"); box.replaceChildren(); if (!wtFile) return;
+    const r = el("div", "fitem"); const x = el("button", "x", "✕"); x.type = "button"; x.onclick = () => { wtFile = null; renderWtFile(); };
+    r.append(el("span", "grow", wtFile.name), el("span", "muted mono", fmtSize(wtFile.size)), x); box.appendChild(r);
   }
-  $("#wtImgBtn").onclick = () => $("#wtImgPick").click();
-  $("#wtImgPick").onchange = e => { if (e.target.files[0]) { wtImgFile = e.target.files[0]; renderWtImg(); } e.target.value = ""; };
+  $("#wtFilePick").onchange = e => { if (e.target.files[0]) { wtFile = e.target.files[0]; renderWtFile(); } e.target.value = ""; };
+  const wdz = $("#wtDrop");
+  ["dragenter", "dragover"].forEach(ev => wdz.addEventListener(ev, e => { e.preventDefault(); wdz.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => wdz.addEventListener(ev, e => { e.preventDefault(); wdz.classList.remove("over"); }));
+  wdz.addEventListener("drop", e => { if (e.dataTransfer.files[0]) { wtFile = e.dataTransfer.files[0]; renderWtFile(); } });
   $("#wtForm").addEventListener("submit", async e => {
     e.preventDefault();
-    const btn = $("#wtFSubmit"); btn.disabled = true; btn.textContent = "Publishing…"; let path = null;
+    if (!wtFile) return toast("Choose the task file first", true);
+    const btn = $("#wtFSubmit"); btn.disabled = true; btn.textContent = "Uploading…"; let path = null;
     try {
-      if (wtImgFile) path = await uploadVideo(wtImgFile, () => {}, "wtask-");
-      const { error } = await sb.from("writing_tasks").insert({ title: $("#wtFTitle").value.trim(), task_type: +$("#wtType").value, prompt: $("#wtFPrompt").value.trim() || null, image_path: path, image_name: wtImgFile ? wtImgFile.name : null, publish_date: $("#wtDate").value });
-      if (error) { if (path) sb.storage.from("speaking").remove([path]); throw error; }
-      toast("Writing task published"); $("#wtForm").reset(); wtImgFile = null; renderWtImg(); wtHint(); $("#wtDate").value = todayStr();
+      path = await uploadVideo(wtFile, () => {}, "wtask-");
+      const title = $("#wtFTitle").value.trim() || nameToTitle(wtFile.name);
+      const { error } = await sb.from("writing_tasks").insert({ title, task_type: +$("#wtType").value, prompt: $("#wtFPrompt").value.trim() || null, image_path: path, image_name: wtFile.name, publish_date: $("#wtDate").value });
+      if (error) { sb.storage.from("speaking").remove([path]); throw error; }
+      toast("Writing task published"); $("#wtForm").reset(); wtFile = null; renderWtFile(); wtHint(); $("#wtDate").value = todayStr();
     } catch (err) { toast(err.message || String(err), true); }
     btn.disabled = false; btn.textContent = "Publish task";
   });
+  // shows the task file: image / PDF / HTML inline, anything else as a download button
+  async function renderTaskFile(host, p) {
+    host.replaceChildren(); host.classList.add("hidden");
+    if (!p.image_path) return;
+    const r = await sb.storage.from("speaking").createSignedUrl(p.image_path, 6 * 3600); if (r.error) return;
+    const url = r.data.signedUrl, ext = ((p.image_name || p.image_path).split(".").pop() || "").toLowerCase();
+    let n;
+    if (/^(png|jpe?g|gif|webp|svg|bmp)$/.test(ext)) { n = el("img", "wt-img"); n.src = url; }
+    else if (ext === "pdf") { n = el("iframe", "wt-frame"); n.src = url; }
+    else if (/^html?$/.test(ext)) { n = el("iframe", "wt-frame"); n.setAttribute("sandbox", "allow-scripts allow-popups"); try { n.srcdoc = await (await fetch(url)).text(); } catch (e) { n.src = url; } }
+    else { n = el("a", "btn primary", "Download task file"); n.href = url; n.download = p.image_name || ""; }
+    host.appendChild(n); host.classList.remove("hidden");
+  }
   $$("#wsView button").forEach(b => b.onclick = () => { wsView = b.dataset.wsv; $$("#wsView button").forEach(x => x.classList.toggle("active", x === b)); loadWsub(); });
   $$("#wsType button").forEach(b => b.onclick = () => { wsType = b.dataset.wst; $$("#wsType button").forEach(x => x.classList.toggle("active", x === b)); loadWsub(); });
   async function loadWsub() {
@@ -1110,7 +1122,7 @@
     const m = el("div", "meta"); m.append(el("span", "tag", "TASK " + k.task_type), el("span", "chip", x.full_name || "Student"), el("span", "chip", fmtDT(x.created_at)), el("span", "chip", x.word_count + " words"));
     d.append(back, m, el("h3", "", k.title));
     if (k.prompt) { const b = el("div", "ws-box"); b.append(el("h5", "", "TASK"), el("p", "ws-text", k.prompt)); d.appendChild(b); }
-    if (k.image_path) { const r = await sb.storage.from("speaking").createSignedUrl(k.image_path, 3600); if (!r.error) { const im = el("img", "wt-img"); im.src = r.data.signedUrl; d.appendChild(im); } }
+    if (k.image_path) { const fh = el("div", "wt-file hidden"); d.appendChild(fh); await renderTaskFile(fh, k); }
     const a = el("div", "ws-box"); a.append(el("h5", "", "STUDENT'S WRITING · " + (x.full_name || "Student").toUpperCase()), el("p", "ws-text", x.content)); d.appendChild(a);
     const del = el("button", "btn sm danger", "Delete submission"); del.style.justifySelf = "start";
     del.onclick = async () => { if (!confirm("Delete this submission?")) return; const { error } = await sb.from("writing_submissions").delete().eq("id", x.id); if (error) return toast(error.message, true); toast("Deleted"); loadWsub(); };
