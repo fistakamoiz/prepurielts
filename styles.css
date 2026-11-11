@@ -373,3 +373,25 @@ body.reading-html .reader.html-mode{height:calc(100vh - 58px)}
 /* back button in the top-left corner of every Speaking lesson */
 .sp-leave{position:absolute;top:14px;left:14px;z-index:3;padding:8px 16px 8px 12px}
 @media(max-width:600px){.sp-leave{top:8px;left:8px}}
+
+/* ---------- writing tasks ---------- */
+.wt-stage{display:grid;gap:16px;margin-bottom:8px;justify-items:start}
+.wt-stage>*{max-width:100%}
+.wt-stage h3{font-size:clamp(1.4rem,3vw,2rem);letter-spacing:-.03em;line-height:1.15}
+.wt-prompt,.ws-text{white-space:pre-wrap;line-height:1.7;color:#d3d3de;margin:0}
+.wt-img{max-width:100%;border-radius:14px;border:1px solid var(--line);background:#fff}
+#wtWrite{width:100%}
+.wt-limit{display:inline-flex;align-items:center;gap:8px;width:max-content;border:1px solid rgba(200,255,61,.35);background:rgba(200,255,61,.08);color:var(--lime);border-radius:999px;padding:6px 14px;font-size:.85rem;font-weight:600}
+.wt-ta{min-height:340px;resize:vertical;line-height:1.7;font-size:1rem}
+.wt-foot{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.wt-count{font-size:1.05rem;color:var(--text)}
+.wt-done{width:100%;text-align:center;padding:34px 20px;border:1px solid rgba(200,255,61,.35);border-radius:18px;background:linear-gradient(135deg,rgba(200,255,61,.08),rgba(124,92,255,.08))}
+.wt-done h4{font-size:1.3rem;margin:10px 0 6px}
+.wt-done p{color:#c4c4d0;margin:0}
+.wt-check{width:52px;height:52px;margin:0 auto;border-radius:50%;background:var(--lime);color:#0a0a0a;display:grid;place-items:center;font-size:1.6rem;font-weight:700}
+.chip.ok{color:var(--lime);border-color:rgba(200,255,61,.35)}
+.ws-detail{display:grid;gap:16px;margin-top:22px}
+.ws-detail h3{font-size:1.5rem;letter-spacing:-.02em}
+.ws-box{border:1px solid var(--line);background:#0b0b10;border-radius:14px;padding:18px 20px}
+.ws-box h5{font-size:.72rem;letter-spacing:.12em;color:var(--muted);margin:0 0 10px;font-family:'JetBrains Mono',monospace}
+.trow.click{cursor:pointer;transition:.2s}.trow.click:hover{border-color:#3d3d4b}

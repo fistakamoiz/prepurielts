@@ -110,7 +110,7 @@
     window.scrollTo(0, 0);
     if (view === "dashboard") loadPassages();
     if (view === "board") loadBoard();
-    if (view === "speaking") loadSpeaking();
+    if (view === "speaking") { loadSpeaking(); if (spKind === "writing" && wrTab === "tasks") loadWritingTasks(); }
     if (view === "admin") { loadAdminPassages(); loadUsers(); }
   }
   document.addEventListener("click", e => {
@@ -379,6 +379,7 @@
       if ($("#spId").value && spAdminKind !== t.dataset.spk) resetSpForm(); // switching section cancels an edit
       spAdminKind = t.dataset.spk; applySpAdmin(); fillAfter();
     }
+    if (t.dataset.tab === "t-wsub") loadWsub();
     $$(".tab").forEach(x => x.classList.toggle("active", x === t));
     $$(".tabpane").forEach(p => p.classList.toggle("hidden", p.id !== t.dataset.tab));
   });
@@ -531,6 +532,7 @@
     spKind = k; spPause(); spOpenTok++; spCur = null; spItems = [];
     $("#view-speaking").classList.toggle("kind-writing", k === "writing"); // Writing videos are shown without the zoom
     $("#spStage").classList.add("hidden"); $("#spPlayer").classList.remove("loading"); $("#spSearch").value = "";
+    $("#wrTabs").classList.toggle("hidden", k !== "writing"); setWrTab("videos");
     const n = spName();
     $("#spHead").replaceChildren(document.createTextNode(n.slice(0, -3)), el("span", "serif", "ing"));
     $("#spLeave").setAttribute("aria-label", "Back to " + n);
@@ -864,6 +866,7 @@
   }
   function applySpAdmin() {
     const w = spAdminKind === "writing", editing = !!$("#spId").value;
+    $("#wrAdminMode").classList.toggle("hidden", !w || editing); if (!w || editing) setWam("video");
     $("#spFormTitle").textContent = (editing ? "Edit " : "Add a ") + (w ? "writing" : "speaking") + " video";
     $("#spSubmit").textContent = editing ? "Save changes" : "Publish video";
     $("#spFTitle").placeholder = w ? "e.g. Task 2: Opinion essay structure" : "e.g. Part 2: Describe a place you visited";
@@ -981,6 +984,137 @@
       }
       box.appendChild(r);
     });
+  }
+
+  /* ---------- writing tasks: student ---------- */
+  let wrTab = "videos", wtItems = [], wtSubmitted = new Set(), wtCur = null;
+  const WT_LIMIT = { 1: 150, 2: 250 };
+  const countWords = s => (s.trim().match(/\S+/g) || []).length;
+  const wtDraftKey = p => "wtDraft:" + (profile ? profile.id : "") + ":" + p.id;
+  function setWrTab(t) {
+    wrTab = t;
+    $$("#wrTabs button").forEach(b => b.classList.toggle("active", b.dataset.wr === t));
+    $("#spVideosPane").classList.toggle("hidden", t !== "videos");
+    $("#wtPane").classList.toggle("hidden", t !== "tasks");
+    $("#spSearch").classList.toggle("hidden", t !== "videos");
+    if (t === "tasks") { spPause(); closeWritingTask(); loadWritingTasks(); }
+  }
+  $$("#wrTabs button").forEach(b => b.onclick = () => setWrTab(b.dataset.wr));
+  async function loadWritingTasks() {
+    const [t, s] = await Promise.all([
+      sb.from("writing_tasks").select("*").lte("publish_date", todayStr()).order("publish_date", { ascending: false }),
+      sb.from("writing_submissions").select("task_id").eq("user_id", profile.id)
+    ]);
+    if (t.error) return toast("Could not load tasks: " + t.error.message, true);
+    wtItems = t.data.sort(newestFirst); wtSubmitted = new Set((s.data || []).map(x => x.task_id)); renderWritingTasks();
+  }
+  function renderWritingTasks() {
+    const list = $("#wtList"); list.replaceChildren();
+    $("#wtEmpty").classList.toggle("hidden", wtItems.length > 0);
+    $("#wtSub").classList.toggle("hidden", !wtItems.length || !$("#wtStage").classList.contains("hidden"));
+    wtItems.forEach(p => {
+      const it = el("div", "item"); const l = el("div", "grow"); l.appendChild(el("h4", "", p.title));
+      const m = el("div", "meta"); m.append(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", "Task " + p.task_type), el("span", "chip", WT_LIMIT[p.task_type] + " words"));
+      const done = wtSubmitted.has(p.id); if (done) m.appendChild(el("span", "chip ok", "Submitted"));
+      l.appendChild(m); it.append(l, el("span", "mono muted", done ? "VIEW →" : "WRITE →"));
+      it.onclick = () => openWritingTask(p); list.appendChild(it);
+    });
+  }
+  function closeWritingTask() { wtCur = null; $("#wtStage").classList.add("hidden"); $("#wtList").classList.remove("hidden"); renderWritingTasks(); }
+  $("#wtBack").onclick = () => { closeWritingTask(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  function showWtDone(done) { $("#wtDone").classList.toggle("hidden", !done); $("#wtWrite").classList.toggle("hidden", done); }
+  async function openWritingTask(p) {
+    wtCur = p; const done = wtSubmitted.has(p.id);
+    $("#wtStage").classList.remove("hidden"); $("#wtList").classList.add("hidden"); $("#wtSub").classList.add("hidden"); $("#wtEmpty").classList.add("hidden");
+    $("#wtTitle").textContent = p.title; $("#wtPrompt").textContent = p.prompt || ""; $("#wtPrompt").classList.toggle("hidden", !p.prompt);
+    $("#wtMeta").replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", "Task " + p.task_type));
+    $("#wtLimit").textContent = "Word limit: " + WT_LIMIT[p.task_type] + " words";
+    $("#wtText").value = done ? "" : (lsGet(wtDraftKey(p)) || ""); updWtCount(); showWtDone(done);
+    const img = $("#wtImg"); img.classList.add("hidden"); img.removeAttribute("src");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (p.image_path) {
+      const r = await sb.storage.from("speaking").createSignedUrl(p.image_path, 6 * 3600);
+      if (wtCur === p && !r.error) { img.src = r.data.signedUrl; img.classList.remove("hidden"); }
+    }
+  }
+  function updWtCount() { const n = countWords($("#wtText").value); $("#wtCount").textContent = n + (n === 1 ? " word" : " words"); }
+  $("#wtText").addEventListener("input", () => { updWtCount(); if (wtCur) lsSet(wtDraftKey(wtCur), $("#wtText").value); });
+  $("#wtSubmit").onclick = async () => {
+    const p = wtCur, text = $("#wtText").value.trim(), n = countWords(text);
+    if (!p || !n) return toast("Write something first", true);
+    const btn = $("#wtSubmit"); btn.disabled = true;
+    const name = (profile.full_name || "").trim() || (profile.email || "").split("@")[0];
+    const { error } = await sb.from("writing_submissions").insert({ task_id: p.id, user_id: profile.id, full_name: name, content: text, word_count: n });
+    btn.disabled = false;
+    if (error && error.code !== "23505") return toast(error.message, true);
+    wtSubmitted.add(p.id); lsSet(wtDraftKey(p), ""); showWtDone(true); window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /* ---------- writing tasks: admin ---------- */
+  let wamMode = "video", wtImgFile = null, wsView = "subs", wsType = "all";
+  function setWam(m) {
+    wamMode = m;
+    $$("#wrAdminMode button").forEach(b => b.classList.toggle("active", b.dataset.wam === m));
+    $("#spForm").classList.toggle("hidden", m !== "video"); $("#wtForm").classList.toggle("hidden", m !== "task");
+  }
+  $$("#wrAdminMode button").forEach(b => b.onclick = () => setWam(b.dataset.wam));
+  const wtHint = () => { $("#wtLimitHint").textContent = "Students will see a limit of " + WT_LIMIT[$("#wtType").value] + " words for this task."; };
+  $("#wtType").onchange = wtHint; wtHint(); $("#wtDate").value = todayStr();
+  function renderWtImg() {
+    const box = $("#wtImgFiles"); box.replaceChildren(); if (!wtImgFile) return;
+    const r = el("div", "fitem"); const x = el("button", "x", "✕"); x.type = "button"; x.onclick = () => { wtImgFile = null; renderWtImg(); };
+    r.append(el("span", "grow", wtImgFile.name), el("span", "muted mono", fmtSize(wtImgFile.size)), x); box.appendChild(r);
+  }
+  $("#wtImgBtn").onclick = () => $("#wtImgPick").click();
+  $("#wtImgPick").onchange = e => { if (e.target.files[0]) { wtImgFile = e.target.files[0]; renderWtImg(); } e.target.value = ""; };
+  $("#wtForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = $("#wtFSubmit"); btn.disabled = true; btn.textContent = "Publishing…"; let path = null;
+    try {
+      if (wtImgFile) path = await uploadVideo(wtImgFile, () => {}, "wtask-");
+      const { error } = await sb.from("writing_tasks").insert({ title: $("#wtFTitle").value.trim(), task_type: +$("#wtType").value, prompt: $("#wtFPrompt").value.trim() || null, image_path: path, image_name: wtImgFile ? wtImgFile.name : null, publish_date: $("#wtDate").value });
+      if (error) { if (path) sb.storage.from("speaking").remove([path]); throw error; }
+      toast("Writing task published"); $("#wtForm").reset(); wtImgFile = null; renderWtImg(); wtHint(); $("#wtDate").value = todayStr();
+    } catch (err) { toast(err.message || String(err), true); }
+    btn.disabled = false; btn.textContent = "Publish task";
+  });
+  $$("#wsView button").forEach(b => b.onclick = () => { wsView = b.dataset.wsv; $$("#wsView button").forEach(x => x.classList.toggle("active", x === b)); loadWsub(); });
+  $$("#wsType button").forEach(b => b.onclick = () => { wsType = b.dataset.wst; $$("#wsType button").forEach(x => x.classList.toggle("active", x === b)); loadWsub(); });
+  async function loadWsub() {
+    const box = $("#wsList"); box.replaceChildren(); $("#wsDetail").classList.add("hidden"); box.classList.remove("hidden");
+    const [s, t] = await Promise.all([ sb.from("writing_submissions").select("*").order("created_at", { ascending: false }), sb.from("writing_tasks").select("*").order("publish_date", { ascending: false }) ]);
+    if (s.error || t.error) return toast((s.error || t.error).message, true);
+    const tasks = new Map(t.data.map(x => [x.id, x]));
+    if (wsView === "tasks") {
+      const rows = t.data.filter(x => wsType === "all" || String(x.task_type) === wsType);
+      if (!rows.length) box.appendChild(el("p", "muted", "No tasks yet."));
+      rows.forEach(x => {
+        const r = el("div", "trow"), g = el("div", "grow"); g.append(el("b", "", x.title), el("span", "muted mono", "TASK " + x.task_type + " · " + fmtDate(x.publish_date)));
+        const del = el("button", "btn sm danger", "Delete");
+        del.onclick = async () => { if (!confirm("Delete this task and all student answers to it?")) return; const { error } = await sb.from("writing_tasks").delete().eq("id", x.id); if (error) return toast(error.message, true); if (x.image_path) sb.storage.from("speaking").remove([x.image_path]); toast("Deleted"); loadWsub(); };
+        r.append(g, del); box.appendChild(r);
+      });
+      return;
+    }
+    const rows = s.data.filter(x => { const k = tasks.get(x.task_id); return k && (wsType === "all" || String(k.task_type) === wsType); });
+    if (!rows.length) box.appendChild(el("p", "muted", "No submissions yet."));
+    rows.forEach(x => {
+      const k = tasks.get(x.task_id);
+      const r = el("div", "trow click"), g = el("div", "grow"); g.append(el("b", "", k.title), el("span", "muted mono", "TASK " + k.task_type + " · " + (x.full_name || "Student") + " · " + fmtDT(x.created_at)));
+      r.append(g, el("span", "mono muted", "OPEN →")); r.onclick = () => openSubmission(x, k); box.appendChild(r);
+    });
+  }
+  async function openSubmission(x, k) {
+    const d = $("#wsDetail"); d.replaceChildren(); $("#wsList").classList.add("hidden"); d.classList.remove("hidden");
+    const back = el("button", "btn ghost sm", "← Back"); back.style.justifySelf = "start"; back.onclick = loadWsub;
+    const m = el("div", "meta"); m.append(el("span", "tag", "TASK " + k.task_type), el("span", "chip", x.full_name || "Student"), el("span", "chip", fmtDT(x.created_at)), el("span", "chip", x.word_count + " words"));
+    d.append(back, m, el("h3", "", k.title));
+    if (k.prompt) { const b = el("div", "ws-box"); b.append(el("h5", "", "TASK"), el("p", "ws-text", k.prompt)); d.appendChild(b); }
+    if (k.image_path) { const r = await sb.storage.from("speaking").createSignedUrl(k.image_path, 3600); if (!r.error) { const im = el("img", "wt-img"); im.src = r.data.signedUrl; d.appendChild(im); } }
+    const a = el("div", "ws-box"); a.append(el("h5", "", "STUDENT'S WRITING · " + (x.full_name || "Student").toUpperCase()), el("p", "ws-text", x.content)); d.appendChild(a);
+    const del = el("button", "btn sm danger", "Delete submission"); del.style.justifySelf = "start";
+    del.onclick = async () => { if (!confirm("Delete this submission?")) return; const { error } = await sb.from("writing_submissions").delete().eq("id", x.id); if (error) return toast(error.message, true); toast("Deleted"); loadWsub(); };
+    d.appendChild(del); window.scrollTo(0, 0);
   }
 
   /* ---------- init ---------- */

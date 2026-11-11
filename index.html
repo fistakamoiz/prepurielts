@@ -121,8 +121,12 @@
   <div class="wrap">
     <div class="page-head">
       <div><div class="mono muted">WATCH &amp; PRACTISE</div><h2 id="spHead">Speak<span class="serif">ing</span></h2></div>
-      <div class="seg-row"><input id="spSearch" class="input search" placeholder="Search…"></div>
+      <div class="seg-row">
+        <div class="seg hidden" id="wrTabs"><button type="button" class="active" data-wr="videos">Videos</button><button type="button" data-wr="tasks">Tasks</button></div>
+        <input id="spSearch" class="input search" placeholder="Search…">
+      </div>
     </div>
+    <div id="spVideosPane">
     <div class="sp-stage hidden" id="spStage">
       <div class="sp-player" id="spPlayer">
         <video id="spVideo" playsinline preload="metadata" controlsList="nodownload" disablePictureInPicture></video>
@@ -183,6 +187,29 @@
     <h3 class="sub" id="spSub">All videos</h3>
     <div class="list" id="spList"></div>
     <p class="muted empty hidden" id="spEmpty">No speaking videos yet. Check back soon.</p>
+    </div>
+    <div id="wtPane" class="hidden">
+      <div class="wt-stage card hidden" id="wtStage">
+        <button type="button" class="btn ghost sm" id="wtBack">← Back to tasks</button>
+        <div class="meta" id="wtMeta"></div>
+        <h3 id="wtTitle"></h3>
+        <p class="wt-prompt" id="wtPrompt"></p>
+        <img id="wtImg" class="wt-img hidden" alt="Task image">
+        <div id="wtWrite" class="stack">
+          <div class="wt-limit" id="wtLimit"></div>
+          <textarea class="input wt-ta" id="wtText" placeholder="Start writing here…" spellcheck="true"></textarea>
+          <div class="wt-foot"><span class="wt-count mono" id="wtCount">0 words</span><button type="button" class="btn primary" id="wtSubmit">Submit</button></div>
+        </div>
+        <div class="wt-done hidden" id="wtDone">
+          <div class="wt-check">✓</div>
+          <h4>Submitted</h4>
+          <p>Your result of this writing task will come out after 1 to 2 days, please wait.</p>
+        </div>
+      </div>
+      <h3 class="sub" id="wtSub">All tasks</h3>
+      <div class="list" id="wtList"></div>
+      <p class="muted empty hidden" id="wtEmpty">No writing tasks yet. Check back soon.</p>
+    </div>
   </div>
 </section>
 
@@ -239,6 +266,7 @@
       <button class="tab" data-tab="t-add" data-kind="listening">Add Listening</button>
       <button class="tab" data-tab="t-speaking" data-spk="speaking">Add Speaking</button>
       <button class="tab" data-tab="t-speaking" data-spk="writing">Add Writing</button>
+      <button class="tab" data-tab="t-wsub">Writing Tasks</button>
       <button class="tab" data-tab="t-passages">Passages</button>
       <button class="tab" data-tab="t-users">Students</button>
     </div>
@@ -305,6 +333,33 @@
     </div>
 
     <div class="tabpane hidden" id="t-speaking">
+      <div class="seg hidden" id="wrAdminMode" style="margin-bottom:18px">
+        <button type="button" class="active" data-wam="video">Upload video</button>
+        <button type="button" data-wam="task">Upload task</button>
+      </div>
+      <form id="wtForm" class="form card hidden">
+        <h3 class="form-title">Upload a writing task</h3>
+        <div class="row">
+          <label>Task name<input class="input" id="wtFTitle" required placeholder="e.g. Line graph: internet users"></label>
+          <label>Task type
+            <select class="input" id="wtType"><option value="1">Task 1</option><option value="2">Task 2</option></select>
+          </label>
+        </div>
+        <p class="muted hint" id="wtLimitHint"></p>
+        <label>Task question <small class="muted">(what the student has to write about)</small>
+          <textarea class="input" id="wtFPrompt" rows="6" placeholder="The graph below shows… Summarise the information by selecting and reporting the main features."></textarea>
+        </label>
+        <div class="stack">
+          <div><button type="button" class="btn" id="wtImgBtn">Add image</button> <small class="muted">(optional: chart, graph or diagram for Task 1)</small></div>
+          <input type="file" id="wtImgPick" accept="image/*" hidden>
+          <div class="files" id="wtImgFiles"></div>
+        </div>
+        <div class="row">
+          <label>Publish date<input class="input" type="date" id="wtDate" required></label>
+          <span></span>
+        </div>
+        <div class="form-actions"><button class="btn primary" type="submit" id="wtFSubmit">Publish task</button></div>
+      </form>
       <form id="spForm" class="form card">
         <input type="hidden" id="spId">
         <h3 class="form-title" id="spFormTitle">Add a speaking video</h3>
@@ -353,6 +408,22 @@
           <button class="btn ghost" type="button" id="spCancel" hidden>Cancel edit</button>
         </div>
       </form>
+    </div>
+
+    <div class="tabpane hidden" id="t-wsub">
+      <div class="seg-row" style="gap:14px;flex-wrap:wrap">
+        <div class="seg" id="wsView">
+          <button type="button" class="active" data-wsv="subs">Submissions</button>
+          <button type="button" data-wsv="tasks">Tasks</button>
+        </div>
+        <div class="seg" id="wsType">
+          <button type="button" class="active" data-wst="all">All</button>
+          <button type="button" data-wst="1">Task 1</button>
+          <button type="button" data-wst="2">Task 2</button>
+        </div>
+      </div>
+      <div class="table" id="wsList"></div>
+      <div class="ws-detail card hidden" id="wsDetail"></div>
     </div>
 
     <div class="tabpane hidden" id="t-passages">
