@@ -25,6 +25,7 @@
     <a href="#" data-go="admin" class="admin-only hidden">Admin</a>
   </nav>
   <div class="nav-right">
+    <button class="mail hidden" id="btnMail" type="button" title="Results" aria-label="Results"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/></svg><i class="mail-dot hidden" id="mailDot">0</i></button>
     <span class="who hidden" id="who"></span>
     <button class="btn ghost" id="btnLogout" hidden>Log out</button>
     <button class="btn primary" id="btnLogin">Log in</button>
@@ -191,6 +192,12 @@
     <div id="wtPane" class="hidden">
       <div class="wt-stage card hidden" id="wtStage">
         <button type="button" class="btn ghost sm" id="wtBack">← Back to tasks</button>
+        <div class="wt-result hidden" id="wtResult">
+          <div class="mono muted">YOUR RESULT</div>
+          <div class="wt-score" id="wtScore"></div>
+          <div class="wt-pm">± 0.5</div>
+          <div class="ws-box hidden" id="wtCommentBox"><h5>TEACHER'S COMMENT</h5><p class="ws-text" id="wtComment"></p></div>
+        </div>
         <div class="meta" id="wtMeta"></div>
         <h3 id="wtTitle"></h3>
         <p class="wt-prompt" id="wtPrompt"></p>
@@ -199,11 +206,8 @@
           <textarea class="input wt-ta" id="wtText" placeholder="Start writing here…" spellcheck="true"></textarea>
           <div class="wt-foot"><div class="wt-countbox"><span class="wt-count mono" id="wtCount">0 words</span><span class="wt-limit" id="wtLimit"></span></div><button type="button" class="btn primary" id="wtSubmit">Submit</button></div>
         </div>
-        <div class="wt-done hidden" id="wtDone">
-          <div class="wt-check">✓</div>
-          <h4>Submitted</h4>
-          <p>Your result of this writing task will come out after 1 to 2 days, please wait.</p>
-        </div>
+        <div class="ws-box hidden" id="wtDone"><h5 id="wtMineHead"></h5><p class="ws-text" id="wtMineText"></p></div>
+        <div class="wt-wait hidden" id="wtWait">Submitted · your result is on its way. You will get a message in the mail icon.</div>
       </div>
       <h3 class="sub" id="wtSub">All tasks</h3>
       <div class="list" id="wtList"></div>
@@ -490,5 +494,19 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<div class="glass-overlay hidden" id="wtSent">
+  <div class="glass-card">
+    <div class="wt-check">✓</div>
+    <p>Your result of this writing task will come out after 1 to 2 days, please wait.</p>
+  </div>
+  <button type="button" class="btn primary" id="wtSentMenu">TO THE MAIN MENU</button>
+</div>
+<div class="modal hidden" id="mailModal">
+  <div class="modal-card mail-card">
+    <button type="button" class="btn ghost sm" id="mailClose" style="justify-self:end">Close</button>
+    <h3>Results</h3>
+    <div class="stack" id="mailList"></div>
+  </div>
+</div>
 </body>
 </html>

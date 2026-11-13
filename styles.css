@@ -401,3 +401,29 @@ body.reading-html .reader.html-mode{height:calc(100vh - 58px)}
 .wt-countbox{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .wt-count{font-size:1.15rem;font-weight:600}
 .wt-limit{margin:0}
+
+/* ---------- results, mail, glass ---------- */
+.wt-result{width:100%;text-align:center;padding:30px 20px;border-radius:20px;border:1px solid rgba(200,255,61,.35);background:linear-gradient(135deg,rgba(200,255,61,.1),rgba(124,92,255,.1))}
+.wt-score{font-size:clamp(4.5rem,14vw,8rem);font-weight:700;letter-spacing:-.05em;line-height:1;color:var(--lime);margin-top:6px}
+.wt-pm{font-size:.95rem;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace}
+.wt-result .ws-box{text-align:left;margin-top:22px}
+.wt-wait{width:100%;padding:12px 16px;border-radius:12px;border:1px dashed var(--line);color:var(--muted);font-size:.9rem}
+.grade-box{display:grid;gap:14px;border-color:rgba(200,255,61,.35)}
+.grade-box label{display:grid;gap:6px;font-size:.82rem;color:var(--muted)}
+.mail{position:relative;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);display:grid;place-items:center;cursor:pointer;transition:.2s}
+.mail:hover{border-color:#4a4a5a}
+.mail.hidden{display:none}
+.mail-dot{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--lime);color:#0a0a0a;font:700 .7rem/18px 'JetBrains Mono',monospace;font-style:normal;text-align:center}
+.mail-card{max-width:480px;max-height:80vh;overflow:auto}
+.mail-item{display:grid;gap:4px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;cursor:pointer;transition:.2s}
+.mail-item:hover{border-color:#4a4a5a}
+.mail-item.unread{border-color:rgba(200,255,61,.5);background:rgba(200,255,61,.06)}
+.mail-item span{color:var(--lime);font-size:.88rem}
+.glass-overlay{position:fixed;inset:0;z-index:400;display:grid;align-content:center;justify-items:center;gap:26px;padding:24px;background:rgba(5,5,10,.55);backdrop-filter:blur(34px) saturate(140%);-webkit-backdrop-filter:blur(34px) saturate(140%);animation:fade .3s}
+.glass-card{width:min(560px,100%);min-height:280px;display:grid;place-content:center;justify-items:center;gap:22px;text-align:center;padding:48px 40px;border-radius:32px;
+  background:linear-gradient(140deg,rgba(255,255,255,.22),rgba(255,255,255,.06) 45%,rgba(255,255,255,.12));
+  border:1px solid rgba(255,255,255,.35);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.12),0 30px 80px -20px rgba(0,0,0,.6),0 0 60px -10px rgba(124,92,255,.35);animation:pop .4s cubic-bezier(.2,.9,.3,1.2)}
+.glass-card p{margin:0;font-size:clamp(1.2rem,3vw,1.6rem);line-height:1.4;font-weight:600;letter-spacing:-.02em;color:#fff}
+.glass-overlay .btn{letter-spacing:.14em;padding:14px 34px}
+.glass-overlay.hidden,.modal.hidden{display:none}

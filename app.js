@@ -121,6 +121,7 @@
   function applyAuthUI() {
     const logged = !!profile;
     $("#btnLogin").hidden = logged; $("#btnLogout").hidden = !logged;
+    $("#btnMail").classList.toggle("hidden", !logged); if (logged) refreshMail();
     $("#who").classList.toggle("hidden", !logged);
     $("#who").textContent = logged ? profile.full_name || profile.email : "";
     $$(".auth-only").forEach(n => n.classList.toggle("hidden", !logged));
@@ -991,7 +992,7 @@
   }
 
   /* ---------- writing tasks: student ---------- */
-  let wrTab = "videos", wtItems = [], wtSubmitted = new Set(), wtCur = null;
+  let wtSubs = new Map(), wrTab = "videos", wtItems = [], wtSubmitted = new Set(), wtCur = null;
   const WT_LIMIT = { 1: 150, 2: 250 };
   const countWords = s => (s.trim().match(/\S+/g) || []).length;
   const wtDraftKey = p => "wtDraft:" + (profile ? profile.id : "") + ":" + p.id;
@@ -1007,10 +1008,10 @@
   async function loadWritingTasks() {
     const [t, s] = await Promise.all([
       sb.from("writing_tasks").select("*").lte("publish_date", todayStr()).order("publish_date", { ascending: false }),
-      sb.from("writing_submissions").select("task_id").eq("user_id", profile.id)
+      sb.from("writing_submissions").select("*").eq("user_id", profile.id)
     ]);
     if (t.error) return toast("Could not load tasks: " + t.error.message, true);
-    wtItems = t.data.sort(newestFirst); wtSubmitted = new Set((s.data || []).map(x => x.task_id)); renderWritingTasks();
+    wtItems = t.data.sort(newestFirst); wtSubs = new Map((s.data || []).map(x => [x.task_id, x])); wtSubmitted = new Set(wtSubs.keys()); renderWritingTasks();
   }
   function renderWritingTasks() {
     const list = $("#wtList"); list.replaceChildren();
@@ -1019,7 +1020,7 @@
     wtItems.forEach(p => {
       const it = el("div", "item"); const l = el("div", "grow"); l.appendChild(el("h4", "", p.title));
       const m = el("div", "meta"); m.append(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", "Task " + p.task_type), el("span", "chip", WT_LIMIT[p.task_type] + " words"));
-      const done = wtSubmitted.has(p.id); if (done) m.appendChild(el("span", "chip ok", "Submitted"));
+      const done = wtSubmitted.has(p.id); if (done) { const g = wtSubs.get(p.id); m.appendChild(el("span", "chip ok", g && g.graded_at ? "Result: " + Number(g.score).toFixed(1) : "Submitted")); }
       l.appendChild(m); it.append(l, el("span", "mono muted", done ? "VIEW →" : "WRITE →"));
       it.onclick = () => openWritingTask(p); list.appendChild(it);
     });
@@ -1033,9 +1034,19 @@
     $("#wtTitle").textContent = p.title; $("#wtPrompt").textContent = p.prompt || ""; $("#wtPrompt").classList.toggle("hidden", !p.prompt);
     $("#wtMeta").replaceChildren(el("span", "chip", fmtDate(p.publish_date)), el("span", "chip", "Task " + p.task_type));
     $("#wtLimit").textContent = "Word limit: " + WT_LIMIT[p.task_type] + " words";
-    $("#wtText").value = done ? "" : (lsGet(wtDraftKey(p)) || ""); updWtCount(); showWtDone(done);
+    $("#wtText").value = done ? "" : (lsGet(wtDraftKey(p)) || ""); updWtCount(); showWtDone(done); fillWtResult(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
     await renderTaskFile($("#wtFile"), p);
+  }
+  function fillWtResult(p) {
+    const s = wtSubs.get(p.id), graded = !!(s && s.graded_at);
+    $("#wtResult").classList.toggle("hidden", !graded); $("#wtWait").classList.toggle("hidden", !(s && !graded));
+    $("#wtMineHead").textContent = s ? "YOUR WRITING · " + s.word_count + " WORDS" : ""; $("#wtMineText").textContent = s ? s.content : "";
+    if (graded) {
+      $("#wtScore").textContent = Number(s.score).toFixed(1);
+      $("#wtComment").textContent = s.comment || ""; $("#wtCommentBox").classList.toggle("hidden", !s.comment);
+      if (!s.seen_at) { s.seen_at = new Date().toISOString(); sb.rpc("mark_result_seen", { sid: s.id }).then(refreshMail); }
+    }
   }
   function updWtCount() { const n = countWords($("#wtText").value); $("#wtCount").textContent = n + (n === 1 ? " word" : " words"); }
   $("#wtText").addEventListener("input", () => { updWtCount(); if (wtCur) lsSet(wtDraftKey(wtCur), $("#wtText").value); });
@@ -1044,10 +1055,12 @@
     if (!p || !n) return toast("Write something first", true);
     const btn = $("#wtSubmit"); btn.disabled = true;
     const name = (profile.full_name || "").trim() || (profile.email || "").split("@")[0];
-    const { error } = await sb.from("writing_submissions").insert({ task_id: p.id, user_id: profile.id, full_name: name, content: text, word_count: n });
+    const { data, error } = await sb.from("writing_submissions").insert({ task_id: p.id, user_id: profile.id, full_name: name, content: text, word_count: n }).select().single();
     btn.disabled = false;
     if (error && error.code !== "23505") return toast(error.message, true);
-    wtSubmitted.add(p.id); lsSet(wtDraftKey(p), ""); showWtDone(true); window.scrollTo({ top: 0, behavior: "smooth" });
+    if (error) { await loadWritingTasks(); const q = wtItems.find(i => i.id === p.id); if (q) openWritingTask(q); return; }
+    wtSubs.set(p.id, data); wtSubmitted.add(p.id); lsSet(wtDraftKey(p), "");
+    showWtDone(true); fillWtResult(p); $("#wtSent").classList.remove("hidden");
   };
 
   /* ---------- writing tasks: admin ---------- */
@@ -1113,7 +1126,7 @@
     rows.forEach(x => {
       const k = tasks.get(x.task_id);
       const r = el("div", "trow click"), g = el("div", "grow"); g.append(el("b", "", k.title), el("span", "muted mono", "TASK " + k.task_type + " · " + (x.full_name || "Student") + " · " + fmtDT(x.created_at)));
-      r.append(g, el("span", "mono muted", "OPEN →")); r.onclick = () => openSubmission(x, k); box.appendChild(r);
+      r.append(g, el("span", "mono " + (x.graded_at ? "" : "muted"), x.graded_at ? "★ " + Number(x.score).toFixed(1) : "NOT GRADED")); r.onclick = () => openSubmission(x, k); box.appendChild(r);
     });
   }
   async function openSubmission(x, k) {
@@ -1124,10 +1137,47 @@
     if (k.prompt) { const b = el("div", "ws-box"); b.append(el("h5", "", "TASK"), el("p", "ws-text", k.prompt)); d.appendChild(b); }
     if (k.image_path) { const fh = el("div", "wt-file hidden"); d.appendChild(fh); await renderTaskFile(fh, k); }
     const a = el("div", "ws-box"); a.append(el("h5", "", "STUDENT'S WRITING · " + (x.full_name || "Student").toUpperCase()), el("p", "ws-text", x.content)); d.appendChild(a);
+    const gb = el("div", "ws-box grade-box"); gb.appendChild(el("h5", "", "GRADE THIS WRITING"));
+    const sl = el("label", "", "Band score (0 – 9, steps of 0.5)"), si = el("input", "input"); si.type = "number"; si.min = 0; si.max = 9; si.step = 0.5; si.placeholder = "e.g. 7.0"; if (x.score != null) si.value = Number(x.score).toFixed(1); sl.appendChild(si);
+    const cl = el("label", "", "Comment for the student"), ci = el("textarea", "input"); ci.rows = 5; ci.placeholder = "Write feedback the student will see…"; ci.value = x.comment || ""; cl.appendChild(ci);
+    const sv = el("button", "btn primary", x.graded_at ? "Update result" : "Send result"); sv.style.justifySelf = "start";
+    sv.onclick = async () => {
+      const sc = parseFloat(si.value); if (isNaN(sc) || sc < 0 || sc > 9) return toast("Enter a score between 0 and 9", true);
+      sv.disabled = true; const patch = { score: Math.round(sc * 2) / 2, comment: ci.value.trim() || null, graded_at: new Date().toISOString(), seen_at: null };
+      const { error } = await sb.from("writing_submissions").update(patch).eq("id", x.id); sv.disabled = false;
+      if (error) return toast(error.message, true); Object.assign(x, patch); sv.textContent = "Update result"; si.value = patch.score.toFixed(1); toast("Result sent to the student");
+    };
+    gb.append(sl, cl, sv); d.appendChild(gb);
     const del = el("button", "btn sm danger", "Delete submission"); del.style.justifySelf = "start";
     del.onclick = async () => { if (!confirm("Delete this submission?")) return; const { error } = await sb.from("writing_submissions").delete().eq("id", x.id); if (error) return toast(error.message, true); toast("Deleted"); loadWsub(); };
     d.appendChild(del); window.scrollTo(0, 0);
   }
+
+/* ---------- results inbox ---------- */
+  let mailItems = [];
+  async function refreshMail() {
+    if (!profile) return;
+    const { data } = await sb.from("writing_submissions").select("*, writing_tasks(title,task_type)").eq("user_id", profile.id).not("graded_at", "is", null).order("graded_at", { ascending: false });
+    mailItems = (data || []).filter(x => x.writing_tasks); const u = mailItems.filter(x => !x.seen_at).length;
+    const dot = $("#mailDot"); dot.textContent = u; dot.classList.toggle("hidden", !u);
+  }
+  function renderMail() {
+    const box = $("#mailList"); box.replaceChildren();
+    if (!mailItems.length) box.appendChild(el("p", "muted", "No results yet. When a writing result is out, it will appear here."));
+    mailItems.forEach(x => {
+      const t = x.writing_tasks, it = el("div", "mail-item" + (x.seen_at ? "" : " unread"));
+      it.append(el("b", "", "Your result of the " + t.title + " (Task " + t.task_type + ") is out."), el("span", "", "Click on this message to see."), el("small", "mono muted", fmtDT(x.graded_at)));
+      it.onclick = () => openResultFromMail(x); box.appendChild(it);
+    });
+  }
+  async function openResultFromMail(x) {
+    $("#mailModal").classList.add("hidden"); show("writing"); setWrTab("tasks");
+    await loadWritingTasks(); const p = wtItems.find(i => i.id === x.task_id); if (p) openWritingTask(p);
+  }
+  $("#btnMail").onclick = () => { renderMail(); $("#mailModal").classList.remove("hidden"); };
+  $("#mailClose").onclick = () => $("#mailModal").classList.add("hidden");
+  $("#mailModal").addEventListener("click", e => { if (e.target.id === "mailModal") $("#mailModal").classList.add("hidden"); });
+  $("#wtSentMenu").onclick = () => { $("#wtSent").classList.add("hidden"); show("landing"); };
 
   /* ---------- init ---------- */
   sb.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT") { profile = null; applyAuthUI(); } });
